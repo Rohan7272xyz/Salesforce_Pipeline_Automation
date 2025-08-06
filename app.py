@@ -1,0 +1,273 @@
+import pandas as pd
+import os
+import eel
+import tkinter as tk
+from openpyxl.styles import Alignment
+from tkinter import filedialog
+from openpyxl import load_workbook
+import sys
+
+# --- EEL Setup ---
+eel.init('web')
+
+# --- Logging Shim ---
+def safe_log(message, level='info'):
+    """Logs messages to the eel frontend if available, otherwise prints to console."""
+    if hasattr(eel, 'logMessage'):
+        try:
+            eel.logMessage(message, level)
+            return
+        except Exception:
+            pass
+    prefix = level.upper()
+    print(f"[{prefix}] {message}")
+
+def safe_complete(ok: bool):
+    """Signals completion status to the eel frontend if available."""
+    if hasattr(eel, 'processingComplete'):
+        try:
+            eel.processingComplete(ok)
+            return
+        except Exception:
+            pass
+    print(f"[STATUS] processingComplete({ok})")
+
+# --- Constants ---
+TEMPLATE_SHEET_NAME = 'Pipeline'
+DATA_START_ROW = 5
+
+def get_resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+TEMPLATE_PATH = get_resource_path('C5SDEC_Pipeline_Overview_v3_070325.xlsx')
+
+@eel.expose
+def select_file(title, file_type):
+    """Opens a native file dialog to select a file."""
+    root = tk.Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    file_path = filedialog.askopenfilename(
+        title=title, filetypes=[(file_type, "*.xlsx *.xls")]
+    )
+    return file_path
+
+# --- Date parsing helper ---
+def parse_date(val):
+    """Safely parses a value to a date object, returning original value on failure."""
+    try:
+        return pd.to_datetime(val).date()
+    except:
+        return val
+
+@eel.expose
+def process_and_merge_files(data_path):
+    """
+    Main function to process the raw data file, merge it into a template,
+    and save the output. It ensures the 'Total' row is always last.
+    Updated to handle the new MAG Value column.
+    """
+    try:
+        safe_log("--- Starting Excel Processing ---")
+
+        if not data_path or not os.path.exists(data_path):
+            safe_log("Error: Raw Data File not found or not provided.", 'error')
+            safe_complete(False)
+            return None
+
+        if not os.path.exists(TEMPLATE_PATH):
+            safe_log(f"Error: Integrated template file not found at {TEMPLATE_PATH}", 'error')
+            safe_complete(False)
+            return None
+
+        # --- Strip Formatting and Metadata ---
+        safe_log(f"Reading and cleaning data from '{os.path.basename(data_path)}'...")
+        wb_raw = load_workbook(data_path, data_only=True)
+        sheet_name = wb_raw.sheetnames[0]
+        sheet_raw = wb_raw[sheet_name]
+
+        raw_values = [
+            [str(cell).strip() if cell is not None else "" for cell in row]
+            for row in sheet_raw.iter_rows(values_only=True)
+        ]
+
+        df_raw = pd.DataFrame(raw_values)
+        df_raw = df_raw.iloc[14:].copy()  # Data starts at row 14 (0-indexed)
+        df_raw.drop(columns=[0], inplace=True, errors='ignore')  # Remove empty first column
+        df_raw.reset_index(drop=True, inplace=True)
+
+        # --- Updated Header Index Validation for NEW column structure ---
+        # New structure: [1=Capture Mgr, 3=Opportunity, 4=SF Number, 5=Stage, 6=Positioning, 7=Ceiling Value, 8=MAG Value, 9=RFP Date, 10=Award Date, 11=GovWin]
+        expected_columns = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        if any(idx >= len(df_raw.columns) for idx in expected_columns):
+            safe_log("Error: Expected columns not found in input data.", 'error')
+            safe_complete(False)
+            return None
+
+        df_raw = df_raw[expected_columns]
+        df_raw.columns = [
+            'Capture Mgr', 'Opportunity', 'SF Number', 'Stage', 'Positioning',
+            'Ceiling Value ($)', 'MAG Value ($)', 'Anticipated RFP Date', 'RFP Award', 'GovWin'
+        ]
+
+        # --- Updated numeric parsing to include MAG Value ---
+        df_raw['Ceiling Value ($)'] = pd.to_numeric(df_raw['Ceiling Value ($)'].str.replace('[\$,]', '', regex=True), errors='coerce')
+        df_raw['MAG Value ($)'] = pd.to_numeric(df_raw['MAG Value ($)'].str.replace('[\$,]', '', regex=True), errors='coerce')
+        df_raw['GovWin'] = pd.to_numeric(df_raw['GovWin'], errors='coerce')
+
+        df = df_raw.dropna(how='all')
+        df.dropna(subset=['Opportunity'], inplace=True)
+
+        # --- Exclude unwanted text across multiple columns ---
+        EXCLUSION_KEYWORDS = [
+            'Confidential Information - Do Not Distribute',
+            'Copyright © 2000-2025 salesforce.com, inc. All rights reserved.'
+        ]
+        for col in ['Capture Mgr', 'Opportunity']:
+            df = df[~df[col].astype(str).str.contains('|'.join(EXCLUSION_KEYWORDS), case=False, na=False)]
+
+        # --- Handle Total Row AFTER filtering ---
+        safe_log("Separating and sorting main data from total row...")
+
+        # Create a temporary column for case-insensitive matching and trimming
+        df['temp_mgr_lower'] = df['Capture Mgr'].astype(str).str.strip().str.lower()
+
+        # Isolate the total row(s) and the main data
+        total_row_mask = df['temp_mgr_lower'] == 'total'
+        total_df = df[total_row_mask].copy()
+        main_df = df[~total_row_mask].copy()
+
+        # The original code had logic to find a stray row containing just a number
+        # in the 'Opportunity' column, which likely belongs to the 'Total' row.
+        # We perform this check on the main_df before sorting.
+        if not total_df.empty:
+            # Look for rows that might be count rows (like "Count", "87")
+            count_row_mask = main_df['Opportunity'].astype(str).str.match(r'^\d+$')
+            if count_row_mask.any():
+                # Get the numeric value from the stray row
+                numeric_value = main_df.loc[count_row_mask, 'Opportunity'].iloc[0]
+                
+                # Assign this value to the 'Opportunity' column in the first total row
+                total_df.iloc[0, total_df.columns.get_loc('Opportunity')] = numeric_value
+                
+                # Remove the stray numeric row from the main data
+                main_df = main_df[~count_row_mask]
+                safe_log("Found and moved stray total count to the total row.")
+
+        # --- Sort data in the desired order: by manager, then unassigned, then total ---
+        safe_log("Sorting data: assigned managers, unassigned, then total...")
+
+        # Separate main_df into rows with and without a Capture Manager.
+        # We use the 'temp_mgr_lower' column which is already stripped and lowercased.
+        has_mgr_mask = (main_df['temp_mgr_lower'] != '') & (main_df['temp_mgr_lower'] != 'nan')
+        df_with_mgr = main_df[has_mgr_mask].copy()
+        df_without_mgr = main_df[~has_mgr_mask].copy()
+
+        # Sort the dataframe that has managers alphabetically by 'Capture Mgr'
+        df_with_mgr.sort_values(by='Capture Mgr', inplace=True)
+
+        # Recombine the dataframes in the correct order:
+        # 1. Sorted rows with a manager
+        # 2. Rows without a manager
+        # 3. The total row
+        df = pd.concat([df_with_mgr, df_without_mgr, total_df], ignore_index=True)
+        
+        # Clean up the temporary column used for sorting and filtering
+        df.drop(columns=['temp_mgr_lower'], inplace=True, errors='ignore')
+
+        safe_log(f"Processed {len(df)} rows of data.")
+
+        # --- Load Template ---
+        safe_log("Loading integrated template file...")
+        workbook = load_workbook(TEMPLATE_PATH)
+        sheet = workbook[TEMPLATE_SHEET_NAME]
+
+        # --- Clear Old Data ---
+        end_row = sheet.max_row
+        for r in range(DATA_START_ROW, end_row + 1):
+            val = sheet.cell(row=r, column=1).value
+            if isinstance(val, str) and "total" in val.lower():
+                end_row = r - 1
+                break
+
+        # Clear more columns now that we have MAG Value
+        for r_idx in range(DATA_START_ROW, end_row + 1):
+            for c_idx in range(1, 11):  # Increased to 11 columns to include MAG Value
+                sheet.cell(row=r_idx, column=c_idx).value = None
+
+        safe_log(f"Cleared rows {DATA_START_ROW} to {end_row} in the template.")
+
+        # --- Write New Data ---
+        safe_log("Writing new data to template...")
+        for i, row in enumerate(df.itertuples(index=False), start=DATA_START_ROW):
+            sheet.row_dimensions[i].height = 30  # Set uniform row height
+
+            for j, val in enumerate(row, start=1):
+                cell = sheet.cell(row=i, column=j)
+
+                if pd.isna(val):
+                    cell.value = None
+                elif j == 6:  # Ceiling Value ($)
+                    try:
+                        cell.value = float(val)
+                        cell.number_format = '$#,##0'
+                    except (ValueError, TypeError):
+                        cell.value = val
+                elif j == 7:  # MAG Value ($) - NEW COLUMN
+                    try:
+                        cell.value = float(val)
+                        cell.number_format = '$#,##0'
+                    except (ValueError, TypeError):
+                        cell.value = val
+                elif j in (8, 9):  # Date Columns (RFP Date, Award Date) - SHIFTED
+                    cell.value = parse_date(val)
+                    cell.number_format = 'mm/dd/yyyy'
+                elif j == 10:  # GovWin - SHIFTED
+                    try:
+                        cell.value = int(float(val))
+                        cell.number_format = '0'
+                    except (ValueError, TypeError):
+                        cell.value = val
+                else:
+                    cell.value = val
+
+                if j == 2: # Opportunity Column
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+        downloads_path = os.path.join(os.path.expanduser('~'), 'Downloads')
+        output_filename = 'C5S&DEC_Pipeline_FINAL_SORTED.xlsx'
+        output_path = os.path.join(downloads_path, output_filename)
+
+        workbook.save(output_path)
+        safe_log(f"Success! Final file saved to '{output_path}'.", 'success')
+        safe_complete(True)
+        return output_path
+
+    except Exception as e:
+        safe_log(f"An unexpected error occurred: {e}", 'error')
+        import traceback
+        safe_log(traceback.format_exc(), 'error')
+        safe_complete(False)
+        return None
+
+if __name__ == "__main__":
+    # This allows running the script directly for testing or from the command line
+    if len(sys.argv) > 1:
+        data_path = sys.argv[1]
+        result_path = process_and_merge_files(data_path)
+        if result_path:
+            print(f"[RESULT] {result_path}")
+        else:
+            sys.exit(1)
+    else:
+        # This starts the eel GUI application
+        try:
+            eel.start('index.html', port=0, cmdline_args=['--start-maximized'])
+        except (SystemExit, MemoryError, KeyboardInterrupt):
+            print("Application closed.")
