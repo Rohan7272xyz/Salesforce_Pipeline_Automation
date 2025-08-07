@@ -1,27 +1,27 @@
 import logging
 import time
-import os
-from fetch import download_latest_attachment
-from process import generate_gantt_chart
-from send_email import send_email_with_attachment
+import sys
+from pathlib import Path
 
-print("✅ Running the resilient pipeline script (v5 - Template Management)")
+# Add project root to Python path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "scripts"))
 
-# 📝 Setup logging
+from config import Config
+from scripts.fetch import download_latest_attachment
+from scripts.process import generate_gantt_chart
+from scripts.send_email import send_email_with_attachment
+
+print("✅ Running the resilient pipeline script (v6 - Fixed Configuration)")
+
+# Setup logging
+Config.ensure_directories()
 logging.basicConfig(
-    filename="pipeline_log.txt",
+    filename=Config.LOGS_DIR / "pipeline_log.txt",
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
-
-CHECK_INTERVAL_SECONDS = 5  # ⏱ check every 5 seconds
-
-# Contact info
-YOUR_EMAIL = "Rohan.Anand@mag.us"
-JOE_EMAIL = "Joseph.Findley@mag.us"
-
-# Template path
-TEMPLATE_PATH = r"C:\Users\rohan\Personal Projects\Email_Excel_Python_Alg\C5SDEC_Pipeline_Overview_v3_070325.xlsx"
 
 def send_template_to_joe():
     """Send the current template to Joe for modification."""
@@ -48,18 +48,18 @@ Rohan's Pipeline System
 This is an automated response to your "Adjust Columns" request.
 """
         
-        if not os.path.exists(TEMPLATE_PATH):
-            raise FileNotFoundError(f"Template file not found at {TEMPLATE_PATH}")
+        if not Config.TEMPLATE_PATH.exists():
+            raise FileNotFoundError(f"Template file not found at {Config.TEMPLATE_PATH}")
         
         send_email_with_attachment(
-            to_address=JOE_EMAIL,
-            cc_address=YOUR_EMAIL,
+            to_address=Config.JOE_EMAIL,
+            cc_address=Config.YOUR_EMAIL,
             subject=template_subject,
             body=template_body,
-            attachment_path=TEMPLATE_PATH
+            attachment_path=str(Config.TEMPLATE_PATH)
         )
         
-        print(f"📧 Template sent to Joe ({JOE_EMAIL})")
+        print(f"📧 Template sent to Joe ({Config.JOE_EMAIL})")
         logging.info(f"Template sent to Joe for column adjustment")
         return True
         
@@ -112,7 +112,7 @@ This is an automated error notification.
         
         send_email_with_attachment(
             to_address=sender,
-            cc_address=YOUR_EMAIL,
+            cc_address=Config.YOUR_EMAIL,
             subject=subject,
             body=body,
             attachment_path=None
@@ -148,14 +148,14 @@ This is an automated error alert from your pipeline system.
 """
         
         send_email_with_attachment(
-            to_address=YOUR_EMAIL,
+            to_address=Config.YOUR_EMAIL,
             subject=alert_subject,
             body=alert_body,
             attachment_path=None
         )
         
-        print(f"📧 Error alert sent to you ({YOUR_EMAIL})")
-        logging.info(f"Error alert email sent to {YOUR_EMAIL}")
+        print(f"📧 Error alert sent to you ({Config.YOUR_EMAIL})")
+        logging.info(f"Error alert email sent to {Config.YOUR_EMAIL}")
         return True
         
     except Exception as e:
@@ -189,15 +189,15 @@ This is an automated error notification. If you have questions, please contact R
 """
         
         send_email_with_attachment(
-            to_address=JOE_EMAIL,
-            cc_address=YOUR_EMAIL,
+            to_address=Config.JOE_EMAIL,
+            cc_address=Config.YOUR_EMAIL,
             subject=error_subject,
             body=error_body,
             attachment_path=None
         )
         
-        print(f"📧 Error notification sent to Joe ({JOE_EMAIL})")
-        logging.info(f"Error notification email sent to Joe: {JOE_EMAIL}")
+        print(f"📧 Error notification sent to Joe ({Config.JOE_EMAIL})")
+        logging.info(f"Error notification email sent to Joe: {Config.JOE_EMAIL}")
         return True
         
     except Exception as e:
@@ -222,6 +222,19 @@ def handle_error(error_message, sender_email=None):
         send_error_email_to_joe(error_message, "Unknown")
 
 def main():
+    """Main pipeline loop."""
+    try:
+        # Validate configuration before starting
+        Config.validate_config()
+        print("✅ Configuration validated successfully")
+        
+    except ValueError as e:
+        print(f"❌ Configuration error: {e}")
+        logging.error(f"Configuration error: {e}")
+        return
+    
+    print(f"🔄 Starting pipeline monitoring (checking every {Config.CHECK_INTERVAL_SECONDS} seconds)")
+    
     while True:
         print("🔍 Checking for new emails...")
         
@@ -251,7 +264,7 @@ def main():
                 elif action_type == "TEMPLATE_UPDATE_FAILED":
                     # Template update failed - notify Joe
                     sender = result[1]
-                    error_details = result[2]
+                    error_details = result[2] if len(result) > 2 else "Unknown error"
                     print(f"❌ Template update failed from {sender}: {error_details}")
                     
                     send_template_confirmation(sender, success=False)
@@ -277,11 +290,11 @@ def main():
                             else:
                                 greeting_name = "there"
                         
-                        print(f"📧 Sending processed pipeline to {sender} with CC to {YOUR_EMAIL}")
+                        print(f"📧 Sending processed pipeline to {sender} with CC to {Config.YOUR_EMAIL}")
                         
                         send_email_with_attachment(
                             to_address=sender,
-                            cc_address=YOUR_EMAIL,
+                            cc_address=Config.YOUR_EMAIL,
                             subject="See the updated DEC & C5S Pipeline",
                             body=(
                                 f"Hi {greeting_name},\n\n"
@@ -304,7 +317,7 @@ def main():
             error_msg = f"System error: {str(e)}"
             handle_error(error_msg)
 
-        time.sleep(CHECK_INTERVAL_SECONDS)
+        time.sleep(Config.CHECK_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     main()
