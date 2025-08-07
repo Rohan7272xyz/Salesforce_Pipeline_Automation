@@ -31,16 +31,26 @@ class TemplateAnalyzer:
             header_row = Config.DATA_START_ROW - 1
             headers = []
             
-            # Extract headers until we hit an empty cell
+            # Extract headers and track their actual Excel column positions
+            empty_count = 0
             for col in range(1, 50):  # Check first 50 columns max
                 cell_value = sheet.cell(row=header_row, column=col).value
                 if cell_value is None or str(cell_value).strip() == "":
-                    break
-                headers.append(str(cell_value).strip())
+                    empty_count += 1
+                    # Stop if we hit 3 consecutive empty cells (allows for blank Column A)
+                    if empty_count >= 3:
+                        break
+                    continue
+                else:
+                    empty_count = 0  # Reset counter when we find content
+                    headers.append({
+                        'name': str(cell_value).strip(),
+                        'excel_position': col  # Track actual Excel column position
+                    })
             
             print(f"✅ Found {len(headers)} total columns in template:")
-            for i, header in enumerate(headers, 1):
-                print(f"   {i}: {header}")
+            for i, header in enumerate(headers):
+                print(f"   Excel Col {header['excel_position']}: {header['name']}")
                 
             return headers
             
@@ -62,8 +72,10 @@ class TemplateAnalyzer:
         month_names = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
                       'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
         
-        for i, header in enumerate(headers, 1):
-            header_lower = header.lower().strip()
+        for header_info in headers:
+            header_name = header_info['name']
+            excel_position = header_info['excel_position']
+            header_lower = header_name.lower().strip()
             
             # Only treat as calendar if it matches month + year pattern
             is_calendar = False
@@ -85,16 +97,16 @@ class TemplateAnalyzer:
             
             if is_calendar:
                 calendar_columns.append({
-                    'index': i,
-                    'name': header,
+                    'index': excel_position,
+                    'name': header_name,
                     'type': 'calendar'
                 })
             else:
                 # Everything else is input data (including T&E, Contract fields, etc.)
                 input_columns.append({
-                    'index': i,
-                    'name': header,
-                    'type': self.determine_column_type(header)
+                    'index': excel_position,
+                    'name': header_name,
+                    'type': self.determine_column_type(header_name)
                 })
         
         print(f"📊 Column Analysis:")
@@ -103,11 +115,11 @@ class TemplateAnalyzer:
         
         print(f"\n📋 Input columns identified:")
         for info in input_columns:
-            print(f"   - {info['name']} (position {info['index']}, type: {info['type']})")
+            print(f"   - {info['name']} (Excel position {info['index']}, type: {info['type']})")
             
         print(f"\n📅 Calendar columns identified:")
         for info in calendar_columns:
-            print(f"   - {info['name']} (position {info['index']})")
+            print(f"   - {info['name']} (Excel position {info['index']})")
         
         return input_columns, calendar_columns
     
@@ -153,19 +165,44 @@ class TemplateAnalyzer:
                 raw_values.append([str(cell).strip() if cell is not None else "" for cell in row])
             
             # Data typically starts around row 14-15, look for header row
+            # Try multiple strategies to find headers
             for start_row in range(10, len(raw_values)):
                 row = raw_values[start_row]
-                # Look for a row that looks like headers (has "Capture" and "Opportunity")
-                row_text = " ".join(str(cell).lower() for cell in row if cell)
-                if "capture" in row_text and "opportunity" in row_text:
-                    print(f"📋 Found headers at row {start_row + 1}")
+                # Remove empty cells for analysis
+                non_empty_cells = [cell for cell in row if cell and cell.strip()]
+                if not non_empty_cells:
+                    continue
+                    
+                row_text = " ".join(str(cell).lower() for cell in non_empty_cells)
+                
+                # Look for key Salesforce column indicators
+                indicators = ['capture', 'opportunity', 'salesforce', 'stage', 'rfp', 'award', 'govwin']
+                matches = sum(1 for indicator in indicators if indicator in row_text)
+                
+                # If we find multiple indicators, this is likely the header row
+                if matches >= 3:
+                    print(f"📋 Found headers at row {start_row + 1} (found {matches} indicators)")
+                    print(f"🔍 Header row content: {non_empty_cells[:5]}...")  # Show first 5 headers
                     return raw_values[start_row:]  # Return from header row onwards
             
             print("⚠️ Could not identify header row in sample data")
+            print("🔍 Trying alternative approach - using row 14 directly...")
+            
+            # Fallback: use row 14 (index 13) directly if it exists
+            if len(raw_values) > 13:
+                fallback_row = raw_values[13]
+                non_empty_cells = [cell for cell in fallback_row if cell and cell.strip()]
+                if len(non_empty_cells) >= 5:  # Must have at least 5 columns
+                    print(f"📋 Using row 14 as fallback header row")
+                    print(f"🔍 Fallback headers: {non_empty_cells[:5]}...")
+                    return raw_values[13:]
+            
             return None
             
         except Exception as e:
             print(f"⚠️ Error analyzing raw data sample: {e}")
+            import traceback
+            print(traceback.format_exc())
             return None
     
     def smart_column_mapping(self, template_columns, raw_data_sample):
@@ -176,7 +213,7 @@ class TemplateAnalyzer:
         # Define smart mapping rules for common variations
         SMART_MAPPING_RULES = {
             # GovWin variations
-            'govwin': ['govwin iq', 'gov win', 'govwin id', 'government win'],
+            'govwin': ['govwin iq', 'gov win', 'govwin id', 'government win', 'govwin iq opportunity id'],
             
             # SF/SalesForce variations  
             'sf': ['salesforce', 'sf number', 'sf id', 'salesforce id', 'salesforce number'],
@@ -186,9 +223,9 @@ class TemplateAnalyzer:
             'opportunity': ['oppy', 'opportunity name', 'opp', 'opportunities'],
             'oppy': ['opportunity', 'opportunity name', 'opp', 'opportunities'],
             
-            # Award/Date variations
-            'award': ['award date', 'rfp award', 'contract award', 'award date'],
-            'rfp award': ['award date', 'award', 'contract award date'],
+            # Award/Date variations  
+            'rfp award': ['award date', 'award', 'contract award date', 'contract award'],
+            'award': ['award date', 'rfp award', 'contract award', 'contract award date'],
             
             # Value/Ceiling variations
             'ceiling': ['contract ceiling', 'ceiling value', 'contract value', 'max value'],
@@ -197,6 +234,9 @@ class TemplateAnalyzer:
             # Manager variations
             'manager': ['mgr', 'capture manager', 'capture mgr', 'program manager'],
             'capture': ['manager', 'mgr', 'capture manager', 'capture mgr'],
+            
+            # Positioning (should be exact match, but adding for completeness)
+            'positioning': ['position', 'pos', 'positioning'],
         }
         
         def find_best_match(template_name, available_names):
@@ -282,7 +322,10 @@ class TemplateAnalyzer:
         all_template_columns = input_columns + calendar_columns
         
         # Generate column indices for expected_columns (only input data columns)
-        expected_columns_list = ', '.join([str(info['index']) for info in processing_columns])
+        # Both template and raw data have blank Column A, so they align perfectly
+        # Template Excel position 2 = Raw data Excel position 2
+        # After dropping column 0 in app.py: Excel position 2 becomes pandas index 1, position 3 becomes index 1, etc.
+        expected_columns_list = ', '.join([str(info['index'] - 1) for info in processing_columns])
         
         # Generate column names list using SMART MAPPED names (what's actually in raw data)
         mapped_column_names = [f"'{column_mapping[info['name']]}'" for info in processing_columns]
@@ -464,6 +507,24 @@ def process_and_merge_files(data_path):
     {column_names_list}
 ]
 
+        # DEBUG: Check if the problematic columns have data
+        safe_log("DEBUG: Column names after mapping:")
+        safe_log(str(df_raw.columns.tolist()))
+        safe_log("DEBUG: Sample data from first row:")
+        for col in df_raw.columns:
+            sample_val = df_raw[col].iloc[0] if len(df_raw) > 0 else "NO DATA"
+            safe_log(f"  {{col}}: '{{sample_val}}'")
+        safe_log("DEBUG: Check specific columns:")
+        for col_name in ['Award Date', 'GovWin IQ Opportunity ID', 'Positioning']:
+            if col_name in df_raw.columns:
+                non_empty = df_raw[col_name].dropna()
+                non_empty = non_empty[non_empty != '']
+                safe_log(f"  {{col_name}}: {{len(non_empty)}} non-empty values out of {{len(df_raw)}}")
+                if len(non_empty) > 0:
+                    safe_log(f"    Sample values: {{non_empty.head(3).tolist()}}")
+            else:
+                safe_log(f"  {{col_name}}: COLUMN NOT FOUND!")
+
         # --- Auto-generated Data Processing (Input columns only) ---
 {data_processing_code}
 
@@ -511,6 +572,19 @@ def process_and_merge_files(data_path):
         df.drop(columns=['temp_mgr_lower'], inplace=True, errors='ignore')
 
         safe_log(f"Processed {{len(df)}} rows of data.")
+
+        # DEBUG: Check DataFrame just before writing to Excel
+        safe_log("DEBUG: Final DataFrame columns before Excel writing:")
+        safe_log(f"  DataFrame shape: {{df.shape}}")
+        safe_log(f"  Columns with data for problem columns:")
+        for col_name in ['Award Date', 'GovWin IQ Opportunity ID', 'Positioning']:
+            if col_name in df.columns:
+                col_index = df.columns.get_loc(col_name)
+                non_empty = df[col_name].dropna()
+                non_empty = non_empty[non_empty != '']
+                safe_log(f"    {{col_name}} (pandas index {{col_index}}): {{len(non_empty)}} values")
+            else:
+                safe_log(f"    {{col_name}}: NOT FOUND IN DATAFRAME")
 
         # --- Load Template ---
         safe_log("Loading integrated template file...")
