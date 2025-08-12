@@ -123,14 +123,23 @@ class TemplateAnalyzer:
         
         return input_columns, calendar_columns
     
+    
+
     def determine_column_type(self, header):
         """Analyze header to determine data type and formatting."""
         header_lower = header.lower()
-        
-        # Determine column type based on header content
-        if any(keyword in header_lower for keyword in ['value', 'ceiling', 'contract', 'price', 'cost', 'amount']) and '$' in header:
+    
+        # Specific fixes for the three problematic columns
+        if 'positioning' in header_lower:
+            return 'text'  # Force Positioning to be treated as text
+        elif 'govwin' in header_lower:
+            return 'text'  # Force GovWin to be treated as text
+        elif 'rfp' in header_lower and 'award' in header_lower:
+            return 'date'  # Force RFP Award to be treated as date
+        # Existing logic continues below
+        elif any(keyword in header_lower for keyword in ['value', 'ceiling', 'contract', 'price', 'cost', 'amount']) and '$' in header:
             return 'currency'
-        elif any(keyword in header_lower for keyword in ['date', 'rfp', 'award', 'deadline', 'due']):
+        elif any(keyword in header_lower for keyword in ['date', 'deadline', 'due']):
             return 'date'
         elif any(keyword in header_lower for keyword in ['win', 'probability', 'percent', '%']):
             return 'percentage'
@@ -138,7 +147,10 @@ class TemplateAnalyzer:
             return 'text_wrap'
         else:
             return 'text'
-    
+
+
+
+
     def analyze_raw_data_sample(self):
         """
         Analyze a sample of raw data to understand the actual column structure.
@@ -331,6 +343,7 @@ class TemplateAnalyzer:
         mapped_column_names = [f"'{column_mapping[info['name']]}'" for info in processing_columns]
         column_names_list = ',\n    '.join(mapped_column_names)
         
+        
         # Generate data processing code (only for input columns, using mapped names)
         data_processing_lines = []
         for info in processing_columns:
@@ -339,9 +352,12 @@ class TemplateAnalyzer:
                 data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'].str.replace(r'[\\$,]', '', regex=True), errors='coerce')")
             elif info['type'] == 'percentage':
                 data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'], errors='coerce')")
-        
+            elif info['type'] == 'number':
+                data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'], errors='coerce')")
+
         data_processing_code = '\n'.join(data_processing_lines) if data_processing_lines else '        # No special data processing needed'
-        
+
+
         # Generate cell formatting code (for all template columns, using original template positions)
         cell_formatting_lines = []
         text_wrap_checks = []
@@ -362,6 +378,15 @@ class TemplateAnalyzer:
                 cell_formatting_lines.append(f"""                elif j == {j}:  # {name}
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'""")
+                
+            elif col_type == 'number':
+                cell_formatting_lines.append(f"""                elif j == {j}:  # {name}
+                    try:
+                        cell.value = int(float(val))
+                        cell.number_format = '0'
+                    except (ValueError, TypeError):
+                        cell.value = val""")
+
             elif col_type == 'percentage':
                 cell_formatting_lines.append(f"""                elif j == {j}:  # {name}
                     try:
@@ -374,6 +399,8 @@ class TemplateAnalyzer:
                 text_wrap_checks.append(f"                if j == {j}:  # {name}")
                 text_wrap_checks.append(f"                    cell.alignment = Alignment(wrap_text=True, vertical='top')")
         
+
+
         cell_formatting_code = '\n'.join(cell_formatting_lines) if cell_formatting_lines else '                # No special formatting needed'
         text_wrap_code = '\n'.join(text_wrap_checks) if text_wrap_checks else '                # No text wrapping needed'
         
@@ -771,4 +798,4 @@ if __name__ == "__main__":
         print("🚀 New app.py generated with proper input/calendar separation.")
     else:
         print("\n❌ Template analysis failed!")
-        sys.exit(1)
+        sys.exit(1) 

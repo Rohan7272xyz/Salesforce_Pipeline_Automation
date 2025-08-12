@@ -73,7 +73,7 @@ def process_and_merge_files(data_path):
     Total Template Columns: 45
     
     Smart Column Mapping:
-   Capture Manager -> Capture Manager\n   Opportunity Name -> Opportunity Name\n   SF Number -> SalesForce ID\n   T&E -> T&E\n   Stage -> Stage\n   Positioning -> Positioning\n   Ceiling Value ($) -> Contract Ceiling Value\n   MAG Value ($) -> MAG Value\n   Anticipated RFP Date -> Anticipated RFP Date\n   RFP Award -> Award Date\n   GovWin -> GovWin IQ Opportunity ID
+   Capture Manager → Capture Manager\n   Opportunity Name → Opportunity Name\n   SF Number → SalesForce ID\n   T&E → T&E\n   Stage → Stage\n   Positioning → Positioning\n   Ceiling Value ($) → Contract Ceiling Value\n   MAG Value ($) → MAG Value\n   Anticipated RFP Date → Anticipated RFP Date\n   RFP Award → Award Date\n   GovWin → GovWin IQ Opportunity ID
     """
     try:
         safe_log("--- Starting Excel Processing ---")
@@ -128,20 +128,6 @@ def process_and_merge_files(data_path):
     'GovWin IQ Opportunity ID'
 ]
 
-        # DEBUG: Column mapping verification
-        safe_log("DEBUG: DataFrame to Excel column mapping:")
-        safe_log(f"  pandas[0] 'Capture Manager' -> Excel[2] 'Capture Manager'")
-        safe_log(f"  pandas[1] 'Opportunity Name' -> Excel[3] 'Opportunity Name'")
-        safe_log(f"  pandas[2] 'SalesForce ID' -> Excel[4] 'SF Number'")
-        safe_log(f"  pandas[3] 'T&E' -> Excel[5] 'T&E'")
-        safe_log(f"  pandas[4] 'Stage' -> Excel[6] 'Stage'")
-        safe_log(f"  pandas[5] 'Positioning' -> Excel[7] 'Positioning'")
-        safe_log(f"  pandas[6] 'Contract Ceiling Value' -> Excel[8] 'Ceiling Value ($)'")
-        safe_log(f"  pandas[7] 'MAG Value' -> Excel[9] 'MAG Value ($)'")
-        safe_log(f"  pandas[8] 'Anticipated RFP Date' -> Excel[10] 'Anticipated RFP Date'")
-        safe_log(f"  pandas[9] 'Award Date' -> Excel[11] 'RFP Award'")
-        safe_log(f"  pandas[10] 'GovWin IQ Opportunity ID' -> Excel[12] 'GovWin'")
-
         # DEBUG: Check if the problematic columns have data
         safe_log("DEBUG: Column names after mapping:")
         safe_log(str(df_raw.columns.tolist()))
@@ -163,7 +149,6 @@ def process_and_merge_files(data_path):
         # --- Auto-generated Data Processing (Input columns only) ---
         df_raw['Contract Ceiling Value'] = pd.to_numeric(df_raw['Contract Ceiling Value'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
         df_raw['MAG Value'] = pd.to_numeric(df_raw['MAG Value'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
-        df_raw['GovWin IQ Opportunity ID'] = pd.to_numeric(df_raw['GovWin IQ Opportunity ID'], errors='coerce')
 
         df = df_raw.dropna(how='all')
         df.dropna(subset=[df.columns[1]], inplace=True)  # Use second column for opportunity check
@@ -220,8 +205,6 @@ def process_and_merge_files(data_path):
                 non_empty = df[col_name].dropna()
                 non_empty = non_empty[non_empty != '']
                 safe_log(f"    {col_name} (pandas index {col_index}): {len(non_empty)} values")
-                if len(non_empty) > 0:
-                    safe_log(f"      Sample values: {non_empty.head(3).tolist()}")
             else:
                 safe_log(f"    {col_name}: NOT FOUND IN DATAFRAME")
 
@@ -250,22 +233,8 @@ def process_and_merge_files(data_path):
         for i, row in enumerate(df.itertuples(index=False), start=Config.DATA_START_ROW):
             sheet.row_dimensions[i].height = 30  # Set uniform row height
 
-            # DEBUG: Show what's being written for problematic rows
-            if i <= Config.DATA_START_ROW + 2:  # First few rows
-                safe_log(f"DEBUG: Writing row {i}: {list(row)}")
-
             for j, val in enumerate(row, start=1):
                 cell = sheet.cell(row=i, column=j)
-                
-                # DEBUG: Track problematic columns specifically
-                template_col_info = None
-                for info in all_template_columns:
-                    if info['index'] == j:
-                        template_col_info = info
-                        break
-                
-                if template_col_info and template_col_info['name'] in ['Award Date', 'GovWin IQ Opportunity ID', 'Positioning']:
-                    safe_log(f"DEBUG: Writing {template_col_info['name']} at Excel[{j}] = '{val}'")
 
                 if pd.isna(val):
                     cell.value = None
@@ -287,12 +256,6 @@ def process_and_merge_files(data_path):
                 elif j == 11:  # RFP Award
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'
-                elif j == 12:  # GovWin
-                    try:
-                        cell.value = int(float(val))
-                        cell.number_format = '0'
-                    except (ValueError, TypeError):
-                        cell.value = val
                 else:
                     cell.value = val
 

@@ -76,3 +76,5 @@
 2025-08-07 15:34:00,787 [ERROR] Pipeline error: Processing failed for Rohan.Anand@mag.us: Command '['python', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\app.py', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\input\\pipeline_20250807_153359.xlsx']' returned non-zero exit status 1. (sender: Rohan.Anand@mag.us)
 2025-08-07 15:34:01,720 [INFO] Error alert email sent to Rohan.Anand@mag.us
 2025-08-07 15:34:02,757 [INFO] Error notification email sent to Joe: Rohan.Anand@mag.us
+2025-08-07 15:51:06,327 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-07 16:03:15,184 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
