@@ -78,3 +78,7 @@
 2025-08-07 15:34:02,757 [INFO] Error notification email sent to Joe: Rohan.Anand@mag.us
 2025-08-07 15:51:06,327 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
 2025-08-07 16:03:15,184 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-12 10:45:48,280 [INFO] Template sent to Joe for column adjustment
+2025-08-12 10:45:48,290 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-12 10:48:19,259 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-12 10:56:29,018 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us

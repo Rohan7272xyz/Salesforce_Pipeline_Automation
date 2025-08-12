@@ -123,8 +123,6 @@ class TemplateAnalyzer:
         
         return input_columns, calendar_columns
     
-    
-
     def determine_column_type(self, header):
         """Analyze header to determine data type and formatting."""
         header_lower = header.lower()
@@ -148,13 +146,9 @@ class TemplateAnalyzer:
         else:
             return 'text'
 
-
-
-
     def analyze_raw_data_sample(self):
         """
-        Analyze a sample of raw data to understand the actual column structure.
-        This helps with smart column mapping.
+        Analyze the most recent raw data file to understand column structure.
         """
         try:
             # Look for recent input files to analyze
@@ -165,51 +159,56 @@ class TemplateAnalyzer:
             
             # Use the most recent file
             latest_file = max(input_files, key=lambda f: f.stat().st_mtime)
-            print(f"🔍 Analyzing sample data from: {latest_file.name}")
+            print(f"🔍 Analyzing raw data structure from: {latest_file.name}")
             
             workbook = load_workbook(latest_file, data_only=True)
             sheet = workbook.sheetnames[0]
             raw_sheet = workbook[sheet]
             
-            # Get first few rows to find headers (same logic as main processing)
+            # Get first few rows to find headers
             raw_values = []
             for row in raw_sheet.iter_rows(values_only=True, min_row=1, max_row=20):
                 raw_values.append([str(cell).strip() if cell is not None else "" for cell in row])
             
-            # Data typically starts around row 14-15, look for header row
-            # Try multiple strategies to find headers
+            # Find header row (typically row 14, 0-indexed = 13)
+            header_row_data = None
             for start_row in range(10, len(raw_values)):
                 row = raw_values[start_row]
-                # Remove empty cells for analysis
-                non_empty_cells = [cell for cell in row if cell and cell.strip()]
-                if not non_empty_cells:
-                    continue
-                    
-                row_text = " ".join(str(cell).lower() for cell in non_empty_cells)
+                row_text = " ".join(str(cell).lower() for cell in row if cell and cell.strip())
                 
                 # Look for key Salesforce column indicators
-                indicators = ['capture', 'opportunity', 'salesforce', 'stage', 'rfp', 'award', 'govwin']
+                indicators = ['capture', 'opportunity', 'salesforce', 'stage', 'positioning', 'govwin']
                 matches = sum(1 for indicator in indicators if indicator in row_text)
                 
-                # If we find multiple indicators, this is likely the header row
                 if matches >= 3:
-                    print(f"📋 Found headers at row {start_row + 1} (found {matches} indicators)")
-                    print(f"🔍 Header row content: {non_empty_cells[:5]}...")  # Show first 5 headers
-                    return raw_values[start_row:]  # Return from header row onwards
+                    print(f"📋 Found raw data headers at row {start_row + 1}")
+                    header_row_data = row
+                    data_start_row = start_row + 1  # Data starts one row after headers
+                    break
             
-            print("⚠️ Could not identify header row in sample data")
-            print("🔍 Trying alternative approach - using row 14 directly...")
+            if not header_row_data:
+                print("⚠️ Could not identify header row, using row 14 as fallback")
+                header_row_data = raw_values[13] if len(raw_values) > 13 else None
+                data_start_row = 14
             
-            # Fallback: use row 14 (index 13) directly if it exists
-            if len(raw_values) > 13:
-                fallback_row = raw_values[13]
-                non_empty_cells = [cell for cell in fallback_row if cell and cell.strip()]
-                if len(non_empty_cells) >= 5:  # Must have at least 5 columns
-                    print(f"📋 Using row 14 as fallback header row")
-                    print(f"🔍 Fallback headers: {non_empty_cells[:5]}...")
-                    return raw_values[13:]
+            if not header_row_data:
+                return None
             
-            return None
+            # Get sample data rows
+            sample_data_rows = []
+            for i in range(data_start_row, min(data_start_row + 5, len(raw_values))):
+                if i < len(raw_values):
+                    sample_data_rows.append(raw_values[i])
+            
+            print(f"📊 Raw data structure analysis:")
+            print(f"   Headers: {[h for h in header_row_data if h and h.strip()]}")
+            print(f"   Sample data rows: {len(sample_data_rows)}")
+            
+            return {
+                'headers': header_row_data,
+                'sample_data': sample_data_rows,
+                'data_start_row': data_start_row
+            }
             
         except Exception as e:
             print(f"⚠️ Error analyzing raw data sample: {e}")
@@ -217,153 +216,156 @@ class TemplateAnalyzer:
             print(traceback.format_exc())
             return None
     
-    def smart_column_mapping(self, template_columns, raw_data_sample):
+    def smart_column_mapping(self, template_columns, raw_data_info):
         """
-        Create smart mapping between template column names and raw data column names.
-        Handles common variations like SF/SalesForce, Opportunity/Oppy, GovWin variations.
+        Create smart mapping between template columns and raw data columns.
+        Uses actual data content analysis, not just header names.
         """
-        # Define smart mapping rules for common variations
-        SMART_MAPPING_RULES = {
-            # GovWin variations
-            'govwin': ['govwin iq', 'gov win', 'govwin id', 'government win', 'govwin iq opportunity id'],
-            
-            # SF/SalesForce variations  
-            'sf': ['salesforce', 'sf number', 'sf id', 'salesforce id', 'salesforce number'],
-            'salesforce': ['sf', 'sf number', 'sf id', 'salesforce id', 'salesforce number'],
-            
-            # Opportunity variations
-            'opportunity': ['oppy', 'opportunity name', 'opp', 'opportunities'],
-            'oppy': ['opportunity', 'opportunity name', 'opp', 'opportunities'],
-            
-            # Award/Date variations  
-            'rfp award': ['award date', 'award', 'contract award date', 'contract award'],
-            'award': ['award date', 'rfp award', 'contract award', 'contract award date'],
-            
-            # Value/Ceiling variations
-            'ceiling': ['contract ceiling', 'ceiling value', 'contract value', 'max value'],
-            'contract': ['ceiling', 'ceiling value', 'contract ceiling value', 'max contract'],
-            
-            # Manager variations
-            'manager': ['mgr', 'capture manager', 'capture mgr', 'program manager'],
-            'capture': ['manager', 'mgr', 'capture manager', 'capture mgr'],
-            
-            # Positioning (should be exact match, but adding for completeness)
-            'positioning': ['position', 'pos', 'positioning'],
-        }
+        if not raw_data_info:
+            return None
         
-        def find_best_match(template_name, available_names):
-            """Find the best matching column name from available raw data columns."""
+        raw_headers = raw_data_info['headers']
+        sample_data = raw_data_info['sample_data']
+        
+        print(f"🔗 Smart Column Mapping Analysis:")
+        print(f"   Template columns: {len(template_columns)}")
+        print(f"   Raw data columns: {len(raw_headers)}")
+        
+        # Create mapping from template column to raw column index
+        template_to_raw_mapping = {}
+        
+        for template_col in template_columns:
+            template_name = template_col['name']
             template_lower = template_name.lower().strip()
             
-            # First try exact match
-            for available in available_names:
-                if template_lower == available.lower().strip():
-                    return available
+            best_match_index = None
+            best_match_score = 0
             
-            # Then try smart mapping rules
-            for key_pattern, variations in SMART_MAPPING_RULES.items():
-                if key_pattern in template_lower:
-                    for available in available_names:
-                        available_lower = available.lower().strip()
-                        # Check if any variation matches
-                        for variation in variations:
-                            if variation in available_lower or available_lower in variation:
-                                return available
-                        # Also check if the key pattern is in the available name
-                        if key_pattern in available_lower:
-                            return available
-            
-            # Try partial word matching for compound names
-            template_words = template_lower.split()
-            best_match = None
-            best_score = 0
-            
-            for available in available_names:
-                available_lower = available.lower().strip()
-                available_words = available_lower.split()
+            # Analyze each raw column
+            for raw_idx, raw_header in enumerate(raw_headers):
+                if not raw_header or not raw_header.strip():
+                    continue
+                    
+                raw_header_lower = raw_header.lower().strip()
                 
-                # Count matching words
-                score = sum(1 for word in template_words if any(word in av_word or av_word in word for av_word in available_words))
+                # Score this column based on multiple factors
+                score = 0
                 
-                if score > best_score and score >= len(template_words) * 0.5:  # At least 50% word match
-                    best_score = score
-                    best_match = available
+                # 1. Header name similarity
+                if template_lower in raw_header_lower or raw_header_lower in template_lower:
+                    score += 10
+                
+                # 2. Specific keyword matching
+                if 'positioning' in template_lower and 'positioning' in raw_header_lower:
+                    score += 20
+                elif 'govwin' in template_lower and 'govwin' in raw_header_lower:
+                    score += 20
+                elif 'capture' in template_lower and 'capture' in raw_header_lower:
+                    score += 15
+                elif 'opportunity' in template_lower and 'opportunity' in raw_header_lower:
+                    score += 15
+                elif ('sf' in template_lower or 'salesforce' in template_lower) and ('salesforce' in raw_header_lower or 'sf' in raw_header_lower):
+                    score += 20
+                elif 'award' in template_lower and 'award' in raw_header_lower:
+                    score += 15
+                elif 'ceiling' in template_lower and 'ceiling' in raw_header_lower:
+                    score += 15
+                elif 'stage' in template_lower and 'stage' in raw_header_lower:
+                    score += 15
+                
+                # 3. Data content analysis
+                if sample_data:
+                    sample_values = [row[raw_idx] if raw_idx < len(row) else '' for row in sample_data[:3]]
+                    sample_values = [str(v).strip() for v in sample_values if v]
+                    
+                    if sample_values:
+                        # Check data patterns to confirm mapping
+                        if 'positioning' in template_lower:
+                            # Should contain stage-like text (Sub, Capture, Qualification)
+                            if any('sub' in v.lower() or 'capture' in v.lower() or 'qualification' in v.lower() for v in sample_values):
+                                score += 30
+                        elif 'govwin' in template_lower:
+                            # Should contain numeric IDs
+                            if any(v.isdigit() and len(v) >= 5 for v in sample_values):
+                                score += 30
+                        elif 'award' in template_lower or 'rfp' in template_lower:
+                            # Should contain dates
+                            if any('/' in v and any(c.isdigit() for c in v) for v in sample_values):
+                                score += 25
+                        elif 'ceiling' in template_lower or 'value' in template_lower:
+                            # Should contain large numbers
+                            if any(v.replace(',', '').replace('$', '').isdigit() for v in sample_values):
+                                score += 20
+                
+                if score > best_match_score:
+                    best_match_score = score
+                    best_match_index = raw_idx
             
-            return best_match
-        
-        # Create the mapping
-        column_mapping = {}
-        raw_column_names = [col.strip() for col in raw_data_sample[0] if col and col.strip()]  # First row should be headers
-        
-        print(f"🔗 Smart Column Mapping:")
-        print(f"   Template columns: {len(template_columns)}")
-        print(f"   Raw data columns: {len(raw_column_names)}")
-        
-        for i, template_col in enumerate(template_columns):
-            template_name = template_col['name']
-            best_match = find_best_match(template_name, raw_column_names)
-            
-            if best_match:
-                column_mapping[template_name] = best_match
-                if template_name.lower() != best_match.lower():
-                    print(f"   📍 Smart match: '{template_name}' → '{best_match}'")
-                else:
-                    print(f"   ✅ Exact match: '{template_name}'")
+            if best_match_index is not None:
+                template_to_raw_mapping[template_name] = {
+                    'raw_index': best_match_index,
+                    'raw_header': raw_headers[best_match_index],
+                    'score': best_match_score
+                }
+                print(f"   ✅ {template_name} → Raw Column {best_match_index + 1} '{raw_headers[best_match_index]}' (score: {best_match_score})")
             else:
-                column_mapping[template_name] = template_name  # Fallback to original name
-                print(f"   ⚠️  No match found for: '{template_name}' (using original)")
+                print(f"   ❌ No mapping found for: {template_name}")
         
-        return column_mapping
+        return template_to_raw_mapping
     
-    def generate_app_py_content(self, input_columns, calendar_columns):
+    def generate_app_py_content(self, input_columns, calendar_columns, column_mapping):
         """Generate complete app.py content from template structure with smart column mapping."""
         
-        # Analyze raw data sample for smart mapping
-        raw_data_sample = self.analyze_raw_data_sample()
-        
-        # Create smart column mapping
-        if raw_data_sample:
-            column_mapping = self.smart_column_mapping(input_columns, raw_data_sample)
-        else:
-            # Fallback: use original names
-            column_mapping = {col['name']: col['name'] for col in input_columns}
-            print("⚠️ Using fallback column mapping (no smart mapping)")
+        if not column_mapping:
+            print("❌ No column mapping available, cannot generate app.py")
+            return None
         
         # Only use input columns for processing - calendar columns are template-only
         processing_columns = input_columns
         all_template_columns = input_columns + calendar_columns
         
-        # Generate column indices for expected_columns (only input data columns)
-        # Both template and raw data have blank Column A, so they align perfectly
-        # Template Excel position 2 = Raw data Excel position 2
-        # After dropping column 0 in app.py: Excel position 2 becomes pandas index 1, position 3 becomes index 1, etc.
-        expected_columns_list = ', '.join([str(info['index'] - 1) for info in processing_columns])
+        # Generate expected_columns list based on actual raw data positions
+        # After dropping column 0, raw column positions become: position - 1
+        expected_columns_list = []
+        mapped_column_names = []
         
-        # Generate column names list using SMART MAPPED names (what's actually in raw data)
-        mapped_column_names = [f"'{column_mapping[info['name']]}'" for info in processing_columns]
+        for col_info in processing_columns:
+            template_name = col_info['name']
+            if template_name in column_mapping:
+                raw_index = column_mapping[template_name]['raw_index']
+                # After dropping column 0: raw_index stays the same (since we drop index 0)
+                expected_columns_list.append(str(raw_index))
+                mapped_column_names.append(f"'{template_name}'")  # Use template names
+            else:
+                print(f"⚠️ Warning: No mapping found for {template_name}, skipping")
+                continue
+        
+        if len(expected_columns_list) == 0:
+            print("❌ No valid column mappings found!")
+            return None
+        expected_columns_str = ', '.join(expected_columns_list)
         column_names_list = ',\n    '.join(mapped_column_names)
         
-        
-        # Generate data processing code (only for input columns, using mapped names)
+        # Generate data processing code (only for input columns)
         data_processing_lines = []
         for info in processing_columns:
-            mapped_name = column_mapping[info['name']]
             if info['type'] == 'currency':
-                data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'].str.replace(r'[\\$,]', '', regex=True), errors='coerce')")
+                data_processing_lines.append(f"        df_raw['{info['name']}'] = pd.to_numeric(df_raw['{info['name']}'].str.replace(r'[\\$,]', '', regex=True), errors='coerce')")
             elif info['type'] == 'percentage':
-                data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'], errors='coerce')")
+                data_processing_lines.append(f"        df_raw['{info['name']}'] = pd.to_numeric(df_raw['{info['name']}'], errors='coerce')")
             elif info['type'] == 'number':
-                data_processing_lines.append(f"        df_raw['{mapped_name}'] = pd.to_numeric(df_raw['{mapped_name}'], errors='coerce')")
+                data_processing_lines.append(f"        df_raw['{info['name']}'] = pd.to_numeric(df_raw['{info['name']}'], errors='coerce')")
 
         data_processing_code = '\n'.join(data_processing_lines) if data_processing_lines else '        # No special data processing needed'
 
-
-        # Generate cell formatting code (for all template columns, using original template positions)
+        # Generate cell formatting code (for all template columns, using CORRECTED template positions)
         cell_formatting_lines = []
         text_wrap_checks = []
         
         for info in all_template_columns:
-            j = info['index']
+            # IMPORTANT: Add +1 to Excel position because raw data Column A is always blank
+            # This ensures data goes to the correct template columns
+            j = info['index'] + 1  # Shift Excel position by +1
             name = info['name']  # Use template name for comments
             col_type = info['type']
             
@@ -398,8 +400,6 @@ class TemplateAnalyzer:
             if col_type == 'text_wrap':
                 text_wrap_checks.append(f"                if j == {j}:  # {name}")
                 text_wrap_checks.append(f"                    cell.alignment = Alignment(wrap_text=True, vertical='top')")
-        
-
 
         cell_formatting_code = '\n'.join(cell_formatting_lines) if cell_formatting_lines else '                # No special formatting needed'
         text_wrap_code = '\n'.join(text_wrap_checks) if text_wrap_checks else '                # No text wrapping needed'
@@ -411,7 +411,12 @@ class TemplateAnalyzer:
         input_columns_count = len(processing_columns)
         
         # Create mapping info for documentation
-        mapping_info = "\\n".join([f"   {info['name']} → {column_mapping[info['name']]}" for info in processing_columns])
+        mapping_info = "\\n".join([
+            f"   {info['name']} → Raw Column {column_mapping.get(info['name'], {}).get('raw_index', 'UNKNOWN')} '{column_mapping.get(info['name'], {}).get('raw_header', 'UNKNOWN')}'"
+            if isinstance(column_mapping.get(info['name'], {}).get('raw_index'), int)
+            else f"   {info['name']} → NO MAPPING FOUND"
+            for info in processing_columns
+        ])
         
         # Generate the complete app.py content
         app_py_content = f'''import pandas as pd
@@ -521,11 +526,11 @@ def process_and_merge_files(data_path):
         df_raw.reset_index(drop=True, inplace=True)
 
         # --- Input Data Column Structure (Salesforce fields only) ---
-        expected_columns = [{expected_columns_list}]
+        expected_columns = [{expected_columns_str}]
         if any(idx >= len(df_raw.columns) for idx in expected_columns):
             safe_log(f"Error: Expected {{len(expected_columns)}} columns but input has {{len(df_raw.columns)}} columns.", 'error')
             safe_log("Input columns needed: " + str(expected_columns), 'error')
-            safe_log("Available columns: " + str(list(range(1, len(df_raw.columns) + 1))), 'error')
+            safe_log("Available columns: " + str(list(range(len(df_raw.columns)))), 'error')
             safe_complete(False)
             return None
 
@@ -626,9 +631,9 @@ def process_and_merge_files(data_path):
                 end_row = r - 1
                 break
 
-        # Clear all template columns (input + calendar)
+        # Clear all template columns (input + calendar) - add +1 for correct positioning
         for r_idx in range(Config.DATA_START_ROW, end_row + 1):
-            for c_idx in range(1, {total_template_columns + 1}):
+            for c_idx in range(2, {total_template_columns + 2}):  # Start from column 2 (B), not 1 (A)
                 sheet.cell(row=r_idx, column=c_idx).value = None
 
         safe_log(f"Cleared rows {{Config.DATA_START_ROW}} to {{end_row}} in the template.")
@@ -638,7 +643,7 @@ def process_and_merge_files(data_path):
         for i, row in enumerate(df.itertuples(index=False), start=Config.DATA_START_ROW):
             sheet.row_dimensions[i].height = 30  # Set uniform row height
 
-            for j, val in enumerate(row, start=1):
+            for j, val in enumerate(row, start=2):  # START FROM COLUMN 2 (B), NOT 1 (A)
                 cell = sheet.cell(row=i, column=j)
 
                 if pd.isna(val):
@@ -748,13 +753,25 @@ if __name__ == "__main__":
             if not input_columns:
                 raise ValueError("No input data columns identified")
             
-            # Step 3: Generate complete new app.py content
-            new_app_content = self.generate_app_py_content(input_columns, calendar_columns)
+            # Step 3: Analyze raw data structure
+            raw_data_info = self.analyze_raw_data_sample()
+            if not raw_data_info:
+                print("⚠️ Warning: Could not analyze raw data, using template column order")
+                column_mapping = None
+            else:
+                # Step 4: Create smart column mapping
+                column_mapping = self.smart_column_mapping(input_columns, raw_data_info)
             
-            # Step 4: Backup current app.py
+            # Step 5: Generate complete new app.py content
+            new_app_content = self.generate_app_py_content(input_columns, calendar_columns, column_mapping)
+            
+            if not new_app_content:
+                raise ValueError("Failed to generate app.py content")
+            
+            # Step 6: Backup current app.py
             self.backup_current_app_py()
             
-            # Step 5: Write new app.py
+            # Step 7: Write new app.py
             success = self.write_new_app_py(new_app_content)
             
             if success:
@@ -763,9 +780,14 @@ if __name__ == "__main__":
                 print(f"   Input data columns: {len(input_columns)} (from Salesforce)")
                 print(f"   Calendar columns: {len(calendar_columns)} (template only)")
                 print(f"   Total template columns: {len(input_columns + calendar_columns)}")
-                print("\n📋 Input columns configured:")
-                for info in input_columns:
-                    print(f"   - {info['name']} ({info['type']})")
+                
+                if column_mapping:
+                    print("\n📋 Column mappings applied:")
+                    for template_col in input_columns:
+                        if template_col['name'] in column_mapping:
+                            mapping = column_mapping[template_col['name']]
+                            print(f"   - {template_col['name']} ← Raw Column {mapping['raw_index'] + 1} '{mapping['raw_header']}'")
+                
                 return True
             else:
                 print("❌ Failed to write new app.py")
@@ -795,7 +817,7 @@ if __name__ == "__main__":
     
     if success:
         print("\n✅ Smart template analysis completed successfully!")
-        print("🚀 New app.py generated with proper input/calendar separation.")
+        print("🚀 New app.py generated with correct column mappings.")
     else:
         print("\n❌ Template analysis failed!")
-        sys.exit(1) 
+        sys.exit(1)

@@ -73,7 +73,7 @@ def process_and_merge_files(data_path):
     Total Template Columns: 45
     
     Smart Column Mapping:
-   Capture Manager → Capture Manager\n   Opportunity Name → Opportunity Name\n   SF Number → SalesForce ID\n   T&E → T&E\n   Stage → Stage\n   Positioning → Positioning\n   Ceiling Value ($) → Contract Ceiling Value\n   MAG Value ($) → MAG Value\n   Anticipated RFP Date → Anticipated RFP Date\n   RFP Award → Award Date\n   GovWin → GovWin IQ Opportunity ID
+   Capture Manager → Raw Column 1 'Capture Manager'\n   Opportunity Name → Raw Column 3 'Opportunity Name'\n   SF Number → Raw Column 4 'SalesForce ID'\n   T&E → Raw Column 5 'T&E'\n   Stage → Raw Column 6 'Stage'\n   Positioning → Raw Column 7 'Positioning'\n   Ceiling Value ($) → Raw Column 8 'Contract Ceiling Value'\n   MAG Value ($) → Raw Column 9 'MAG Value'\n   Anticipated RFP Date → Raw Column 10 'Anticipated RFP Date'\n   RFP Award → Raw Column 11 'Award Date'\n   GovWin → Raw Column 12 'GovWin IQ Opportunity ID'
     """
     try:
         safe_log("--- Starting Excel Processing ---")
@@ -105,11 +105,11 @@ def process_and_merge_files(data_path):
         df_raw.reset_index(drop=True, inplace=True)
 
         # --- Input Data Column Structure (Salesforce fields only) ---
-        expected_columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        expected_columns = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         if any(idx >= len(df_raw.columns) for idx in expected_columns):
             safe_log(f"Error: Expected {len(expected_columns)} columns but input has {len(df_raw.columns)} columns.", 'error')
             safe_log("Input columns needed: " + str(expected_columns), 'error')
-            safe_log("Available columns: " + str(list(range(1, len(df_raw.columns) + 1))), 'error')
+            safe_log("Available columns: " + str(list(range(len(df_raw.columns)))), 'error')
             safe_complete(False)
             return None
 
@@ -117,15 +117,15 @@ def process_and_merge_files(data_path):
         df_raw.columns = [
     'Capture Manager',
     'Opportunity Name',
-    'SalesForce ID',
+    'SF Number',
     'T&E',
     'Stage',
     'Positioning',
-    'Contract Ceiling Value',
-    'MAG Value',
+    'Ceiling Value ($)',
+    'MAG Value ($)',
     'Anticipated RFP Date',
-    'Award Date',
-    'GovWin IQ Opportunity ID'
+    'RFP Award',
+    'GovWin'
 ]
 
         # DEBUG: Check if the problematic columns have data
@@ -147,8 +147,8 @@ def process_and_merge_files(data_path):
                 safe_log(f"  {col_name}: COLUMN NOT FOUND!")
 
         # --- Auto-generated Data Processing (Input columns only) ---
-        df_raw['Contract Ceiling Value'] = pd.to_numeric(df_raw['Contract Ceiling Value'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
-        df_raw['MAG Value'] = pd.to_numeric(df_raw['MAG Value'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
+        df_raw['Ceiling Value ($)'] = pd.to_numeric(df_raw['Ceiling Value ($)'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
+        df_raw['MAG Value ($)'] = pd.to_numeric(df_raw['MAG Value ($)'].str.replace(r'[\$,]', '', regex=True), errors='coerce')
 
         df = df_raw.dropna(how='all')
         df.dropna(subset=[df.columns[1]], inplace=True)  # Use second column for opportunity check
@@ -221,9 +221,9 @@ def process_and_merge_files(data_path):
                 end_row = r - 1
                 break
 
-        # Clear all template columns (input + calendar)
+        # Clear all template columns (input + calendar) - add +1 for correct positioning
         for r_idx in range(Config.DATA_START_ROW, end_row + 1):
-            for c_idx in range(1, 46):
+            for c_idx in range(2, 47):  # Start from column 2 (B), not 1 (A)
                 sheet.cell(row=r_idx, column=c_idx).value = None
 
         safe_log(f"Cleared rows {Config.DATA_START_ROW} to {end_row} in the template.")
@@ -233,34 +233,34 @@ def process_and_merge_files(data_path):
         for i, row in enumerate(df.itertuples(index=False), start=Config.DATA_START_ROW):
             sheet.row_dimensions[i].height = 30  # Set uniform row height
 
-            for j, val in enumerate(row, start=1):
+            for j, val in enumerate(row, start=2):  # START FROM COLUMN 2 (B), NOT 1 (A)
                 cell = sheet.cell(row=i, column=j)
 
                 if pd.isna(val):
                     cell.value = None
-                elif j == 8:  # Ceiling Value ($)
+                elif j == 9:  # Ceiling Value ($)
                     try:
                         cell.value = float(val)
                         cell.number_format = '$#,##0'
                     except (ValueError, TypeError):
                         cell.value = val
-                elif j == 9:  # MAG Value ($)
+                elif j == 10:  # MAG Value ($)
                     try:
                         cell.value = float(val)
                         cell.number_format = '$#,##0'
                     except (ValueError, TypeError):
                         cell.value = val
-                elif j == 10:  # Anticipated RFP Date
+                elif j == 11:  # Anticipated RFP Date
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'
-                elif j == 11:  # RFP Award
+                elif j == 12:  # RFP Award
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'
                 else:
                     cell.value = val
 
                 # Text wrapping for specific columns
-                if j == 3:  # Opportunity Name
+                if j == 4:  # Opportunity Name
                     cell.alignment = Alignment(wrap_text=True, vertical='top')
 
         downloads_path = Config.get_downloads_path()
