@@ -69,11 +69,11 @@ def process_and_merge_files(data_path):
     and save the output. It ensures the 'Total' row is always last.
     Auto-generated with smart column mapping.
     
-    Input Data Columns: 11
-    Total Template Columns: 45
+    Input Data Columns: 10
+    Total Template Columns: 44
     
     Smart Column Mapping:
-   Capture Manager → Raw Column 1 'Capture Manager'\n   Opportunity Name → Raw Column 3 'Opportunity Name'\n   SF Number → Raw Column 4 'SalesForce ID'\n   T&E → Raw Column 5 'T&E'\n   Stage → Raw Column 6 'Stage'\n   Positioning → Raw Column 7 'Positioning'\n   Ceiling Value ($) → Raw Column 8 'Contract Ceiling Value'\n   MAG Value ($) → Raw Column 9 'MAG Value'\n   Anticipated RFP Date → Raw Column 10 'Anticipated RFP Date'\n   RFP Award → Raw Column 11 'Award Date'\n   GovWin → Raw Column 12 'GovWin IQ Opportunity ID'
+   Capture Manager → Raw Column 1 'Capture Manager'\n   Opportunity Name → Raw Column 3 'Opportunity Name'\n   SF Number → Raw Column 4 'SalesForce ID'\n   Stage → Raw Column 6 'Stage'\n   Positioning → Raw Column 7 'Positioning'\n   Ceiling Value ($) → Raw Column 8 'Contract Ceiling Value'\n   MAG Value ($) → Raw Column 9 'MAG Value'\n   Anticipated RFP Date → Raw Column 10 'Anticipated RFP Date'\n   RFP Award → Raw Column 11 'Award Date'\n   GovWin → Raw Column 12 'GovWin IQ Opportunity ID'
     """
     try:
         safe_log("--- Starting Excel Processing ---")
@@ -105,7 +105,7 @@ def process_and_merge_files(data_path):
         df_raw.reset_index(drop=True, inplace=True)
 
         # --- Input Data Column Structure (Salesforce fields only) ---
-        expected_columns = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        expected_columns = [1, 3, 4, 6, 7, 8, 9, 10, 11, 12]
         if any(idx >= len(df_raw.columns) for idx in expected_columns):
             safe_log(f"Error: Expected {len(expected_columns)} columns but input has {len(df_raw.columns)} columns.", 'error')
             safe_log("Input columns needed: " + str(expected_columns), 'error')
@@ -118,7 +118,6 @@ def process_and_merge_files(data_path):
     'Capture Manager',
     'Opportunity Name',
     'SF Number',
-    'T&E',
     'Stage',
     'Positioning',
     'Ceiling Value ($)',
@@ -223,7 +222,7 @@ def process_and_merge_files(data_path):
 
         # Clear all template columns (input + calendar) - add +1 for correct positioning
         for r_idx in range(Config.DATA_START_ROW, end_row + 1):
-            for c_idx in range(2, 47):  # Start from column 2 (B), not 1 (A)
+            for c_idx in range(2, 46):  # Start from column 2 (B), not 1 (A)
                 sheet.cell(row=r_idx, column=c_idx).value = None
 
         safe_log(f"Cleared rows {Config.DATA_START_ROW} to {end_row} in the template.")
@@ -238,22 +237,22 @@ def process_and_merge_files(data_path):
 
                 if pd.isna(val):
                     cell.value = None
-                elif j == 9:  # Ceiling Value ($)
+                elif j == 8:  # Ceiling Value ($)
                     try:
                         cell.value = float(val)
                         cell.number_format = '$#,##0'
                     except (ValueError, TypeError):
                         cell.value = val
-                elif j == 10:  # MAG Value ($)
+                elif j == 9:  # MAG Value ($)
                     try:
                         cell.value = float(val)
                         cell.number_format = '$#,##0'
                     except (ValueError, TypeError):
                         cell.value = val
-                elif j == 11:  # Anticipated RFP Date
+                elif j == 10:  # Anticipated RFP Date
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'
-                elif j == 12:  # RFP Award
+                elif j == 11:  # RFP Award
                     cell.value = parse_date(val)
                     cell.number_format = 'mm/dd/yyyy'
                 else:

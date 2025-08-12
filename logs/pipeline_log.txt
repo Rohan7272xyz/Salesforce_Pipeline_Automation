@@ -82,3 +82,13 @@
 2025-08-12 10:45:48,290 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
 2025-08-12 10:48:19,259 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
 2025-08-12 10:56:29,018 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-12 11:56:19,260 [INFO] Template sent to Joe for column adjustment
+2025-08-12 11:56:19,260 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-12 11:59:52,957 [INFO] Template update confirmation sent - Success: True
+2025-08-12 11:59:52,957 [INFO] Template successfully updated by Rohan.Anand@mag.us
+2025-08-12 12:01:08,265 [ERROR] Pipeline error: Processing failed for Rohan.Anand@mag.us: Command '['python', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\app.py', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\input\\pipeline_20250812_120106.xlsx']' returned non-zero exit status 1. (sender: Rohan.Anand@mag.us)
+2025-08-12 12:01:09,487 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-12 12:01:10,700 [INFO] Error notification email sent to Joe: Rohan.Anand@mag.us
+2025-08-12 12:02:02,849 [ERROR] Pipeline error: Processing failed for Rohan.Anand@mag.us: Command '['python', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\app.py', 'C:\\Users\\rohan\\Personal Projects\\Resilient_Salesforce_Automation_V5\\Salesforce_Pipeline_Automation\\input\\pipeline_20250812_120201.xlsx']' returned non-zero exit status 1. (sender: Rohan.Anand@mag.us)
+2025-08-12 12:02:03,741 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-12 12:02:04,747 [INFO] Error notification email sent to Joe: Rohan.Anand@mag.us
