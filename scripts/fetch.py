@@ -38,6 +38,23 @@ def replace_template(new_template_path):
         print(f"❌ Failed to replace template: {e}")
         return False
 
+def find_latest_input_file():
+    """Find the most recent pipeline input file to use for analysis."""
+    try:
+        input_files = list(Config.INPUT_DIR.glob("pipeline_*.xlsx"))
+        if not input_files:
+            print("⚠️ No input files found for template analysis")
+            return None
+        
+        # Get the most recent file
+        latest_file = max(input_files, key=lambda f: f.stat().st_mtime)
+        print(f"📂 Found latest input file for analysis: {latest_file.name}")
+        return str(latest_file)
+        
+    except Exception as e:
+        print(f"⚠️ Error finding latest input file: {e}")
+        return None
+
 def download_latest_attachment():
     """
     Download latest attachment and handle different email subjects:
@@ -121,8 +138,14 @@ def download_latest_attachment():
                         # Replace the current template
                         if replace_template(temp_template_path):
                             try:
+                                # CRITICAL FIX: Find the latest input file and pass it to template analyzer
+                                latest_input_file = find_latest_input_file()
+                                
                                 from template_analyzer import analyze_template_and_update_app
-                                if analyze_template_and_update_app():
+                                print(f"🔍 Running template analyzer with input file: {latest_input_file}")
+                                
+                                # Pass the latest input file to ensure correct column mapping
+                                if analyze_template_and_update_app(latest_input_file):
                                     mail.logout()
                                     return ("TEMPLATE_UPDATED", sender, str(temp_template_path))
                                 else:
@@ -130,6 +153,8 @@ def download_latest_attachment():
                                     return ("TEMPLATE_UPDATE_FAILED", sender, "Failed to update app.py")
                             except Exception as e:
                                 print(f"❌ Error during app update: {e}")
+                                import traceback
+                                print(traceback.format_exc())
                                 mail.logout()
                                 return ("TEMPLATE_UPDATE_FAILED", sender, str(e))
                         else:

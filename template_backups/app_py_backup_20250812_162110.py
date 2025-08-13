@@ -1,350 +1,4 @@
-import os
-import re
-from pathlib import Path
-from openpyxl import load_workbook
-import sys
-from datetime import datetime
-
-# Add project root to Python path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
-from config import Config
-
-class ColumnMapper:
-    """
-    Dynamic column mapping logic that adapts to any input file structure.
-    This replaces hardcoded column lists with intelligent matching.
-    """
-    def __init__(self):
-        self.template_path = Config.TEMPLATE_PATH
-        self.sheet_name = Config.TEMPLATE_SHEET_NAME
-
-        # Define column matching rules - these stay constant
-        self.column_matching_rules = {
-            'capture manager': {
-                'keywords': ['capture', 'manager'],
-                'exact_matches': ['capture manager'],
-                'exclusions': ['equals', 'probability'],
-                'data_patterns': []
-            },
-            'opportunity name': {
-                'keywords': ['opportunity', 'name'],
-                'exact_matches': ['opportunity name'],
-                'exclusions': ['equals', 'probability'],
-                'data_patterns': []
-            },
-            'sf number': {
-                'keywords': ['salesforce', 'sf'],
-                'exact_matches': ['salesforce id', 'sf number'],
-                'exclusions': ['equals', 'probability'],
-                'data_patterns': []
-            },
-            'stage': {
-                'keywords': ['stage'],
-                'exact_matches': ['stage'],
-                'exclusions': ['equals', 'probability', 'sub', 'capture', 'qualification'],
-                'data_patterns': ['pre-rfp', 'rfp', 'proposal', 'award']
-            },
-            'positioning': {
-                'keywords': ['positioning'],
-                'exact_matches': ['positioning'],
-                'exclusions': ['equals', 'probability'],
-                'data_patterns': ['sub', 'capture', 'qualification', 'prime']
-            },
-            'ceiling value': {
-                'keywords': ['contract', 'ceiling'],
-                'exact_matches': ['ceiling value ($)', 'contract ceiling value'],
-                'exclusions': ['mag', 'equals', 'probability'],
-                'data_patterns': ['$', 'million', 'thousand']
-            },
-            'mag value': {
-                'keywords': ['mag'],
-                'exact_matches': ['mag value ($)', 'mag value'],
-                'exclusions': ['contract', 'ceiling', 'equals', 'probability'],
-                'data_patterns': ['$', 'million', 'thousand']
-            },
-            'anticipated rfp date': {
-                'keywords': ['anticipated', 'rfp'],
-                'exact_matches': ['anticipated rfp date'],
-                'exclusions': ['award', 'equals', 'probability'],
-                'data_patterns': ['/', '-', '2024', '2025']
-            },
-            'rfp award': {
-                'keywords': ['award'],
-                'exact_matches': ['rfp award', 'award date'],
-                'exclusions': ['anticipated', 'equals', 'probability'],  # removed 'rfp'
-                'data_patterns': ['/', '-', '2024', '2025']
-            },
-            'govwin': {
-                'keywords': ['govwin', 'iq'],
-                'exact_matches': ['govwin iq opportunity id', 'govwin'],
-                'exclusions': ['equals', 'probability'],
-                'data_patterns': []
-            }
-        }
-
-    def extract_template_headers(self):
-        """Extract headers from template Excel file at row 4."""
-        try:
-            workbook = load_workbook(self.template_path, data_only=True)
-            sheet = workbook[self.sheet_name]
-
-            headers = []
-            # Start from column 2 since column 1 is empty in the template
-            for col in range(2, sheet.max_column + 1):
-                cell_value = sheet.cell(row=4, column=col).value
-                if cell_value and str(cell_value).strip():
-                    headers.append({
-                        'index': col,
-                        'name': str(cell_value).strip()
-                    })
-                else:
-                    if col <= 15:
-                        continue
-                    else:
-                        break
-
-            print(f"Extracted {len(headers)} headers from template starting at column 2")
-            return headers
-
-        except Exception as e:
-            print(f"Error extracting template headers: {e}")
-            return None
-
-    def classify_template_columns(self, headers):
-        """Separate input data columns from calendar/Gantt columns."""
-        input_columns = []
-        calendar_columns = []
-
-        calendar_keywords = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
-                             'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
-                             'q1', 'q2', 'q3', 'q4', 'quarter', '2024', '2025',
-                             'gantt', 'calendar', 'timeline']
-
-        for header in headers:
-            header_lower = header['name'].lower()
-            is_calendar = any(keyword in header_lower for keyword in calendar_keywords)
-
-            if is_calendar:
-                calendar_columns.append(header)
-            else:
-                input_columns.append(header)
-
-        print("Column Classification:")
-        print(f"   Input data columns: {len(input_columns)}")
-        print(f"   Calendar columns: {len(calendar_columns)}")
-
-        return input_columns, calendar_columns
-
-    def analyze_raw_data_structure(self, file_path):
-        """
-        Analyze raw data file to understand its column structure.
-        Returns the mapping of raw columns to template columns.
-        """
-        try:
-            print(f"Analyzing raw data structure: {Path(file_path).name}")
-
-            workbook = load_workbook(file_path, data_only=True)
-            sheet = workbook.sheetnames[0]
-            raw_sheet = workbook[sheet]
-
-            raw_headers = []
-            sample_data = []
-
-            # Find header row
-            for row_num in range(10, 20):
-                try:
-                    row_data = list(raw_sheet.iter_rows(values_only=True, min_row=row_num, max_row=row_num))[0]
-                    row_text = " ".join(str(cell).lower() for cell in row_data if cell and str(cell).strip())
-
-                    indicators = ['capture', 'opportunity', 'salesforce', 'stage', 'positioning']
-                    matches = sum(1 for indicator in indicators if indicator in row_text)
-
-                    if matches >= 3:
-                        print(f"Found raw data headers at row {row_num}")
-                        raw_headers = [str(cell).strip() if cell else "" for cell in row_data]
-
-                        # Get sample data (next 3 rows)
-                        for sample_row in range(row_num + 1, row_num + 4):
-                            try:
-                                sample_row_data = list(raw_sheet.iter_rows(values_only=True, min_row=sample_row, max_row=sample_row))[0]
-                                sample_data.append([str(cell).strip() if cell else "" for cell in sample_row_data])
-                            except:
-                                break
-                        break
-                except:
-                    continue
-
-            if not raw_headers:
-                print("Could not find header row, using row 14 as fallback")
-                row_data = list(raw_sheet.iter_rows(values_only=True, min_row=14, max_row=14))[0]
-                raw_headers = [str(cell).strip() if cell else "" for cell in row_data]
-
-            print("Raw data analysis:")
-            print(f"   Total raw columns: {len(raw_headers)}")
-            print(f"   Non-empty headers: {len([h for h in raw_headers if h])}")
-
-            return {
-                'headers': raw_headers,
-                'sample_data': sample_data
-            }
-
-        except Exception as e:
-            print(f"Error analyzing raw data: {e}")
-            return None
-
-    def map_columns_dynamically(self, template_input_columns, raw_data_info):
-        """
-        Create dynamic mapping between available raw columns and template columns.
-        """
-        if not raw_data_info:
-            return {}
-
-        raw_headers = raw_data_info['headers']
-        sample_data = raw_data_info.get('sample_data', [])
-
-        print("Dynamic Column Mapping:")
-
-        mapping = {}
-
-        for template_col in template_input_columns:
-            template_name = template_col['name'].lower().strip()
-            best_match = None
-            best_score = 0
-
-            for raw_idx, raw_header in enumerate(raw_headers):
-                if raw_header is None or str(raw_header).strip() == "":
-                    continue
-
-                raw_header_lower = str(raw_header).lower().strip()
-                score = 0
-
-                # Build candidate rules: predefined or fallback
-                candidate_rules = []
-                for rule_key, rules in self.column_matching_rules.items():
-                    if any(keyword in template_name for keyword in rule_key.split()):
-                        candidate_rules.append(rules)
-                if not candidate_rules:
-                    tokens = re.findall(r"[a-z0-9]+", template_name)
-                    candidate_rules = [{
-                        'keywords': tokens,
-                        'exact_matches': [template_name],
-                        'exclusions': [],
-                        'data_patterns': []
-                    }]
-
-                # Score against candidate rules
-                for rules in candidate_rules:
-                    exclusions = rules.get('exclusions', [])
-                    if any(ex in raw_header_lower for ex in exclusions):
-                        continue
-
-                    if raw_header_lower == template_name or raw_header_lower in rules.get('exact_matches', []):
-                        score += 120
-
-                    keyword_matches = sum(1 for kw in rules.get('keywords', []) if kw in raw_header_lower)
-                    score += keyword_matches * 20
-
-                    data_patterns = rules.get('data_patterns', [])
-                    if sample_data and data_patterns:
-                        sample_values = [row[raw_idx] if raw_idx < len(row) else '' for row in sample_data[:3]]
-                        sample_text = ' '.join(str(v).lower() for v in sample_values if v)
-                        score += sum(1 for p in data_patterns if p in sample_text) * 5
-
-                # Disambiguation boosts to avoid duplicates (MAG vs Ceiling, Award vs Anticipated)
-                if 'mag' in template_name and 'mag' in raw_header_lower and 'ceiling' not in raw_header_lower:
-                    score += 50
-                if 'ceiling' in template_name and 'ceiling' in raw_header_lower:
-                    score += 40
-                if 'award' in template_name and 'award' in raw_header_lower and 'anticipated' not in raw_header_lower:
-                    score += 50
-
-                if score > best_score:
-                    best_score = score
-                    best_match = {
-                        'raw_index': raw_idx,
-                        'raw_header': raw_header,
-                        'score': score
-                    }
-
-            if best_match and best_score >= 10:
-                mapping[template_col['name']] = best_match
-                print(f"   OK {template_col['name']} <- Raw Column {best_match['raw_index']} '{best_match['raw_header']}' (score: {best_score})")
-            else:
-                print(f"   No match found for: {template_col['name']}")
-
-        print(f"Mapping Summary: {len(mapping)}/{len(template_input_columns)} columns mapped")
-        return mapping
-
-    def generate_mapping_config(self, template_input_columns, template_calendar_columns):
-        """Generate the column mapping configuration that app.py will use."""
-        mapping_config = {
-            'template_input_columns': [
-                {
-                    'name': col['name'],
-                    'template_index': col['index'],
-                    'matching_rules': self._get_matching_rules_for_column(col['name'])
-                }
-                for col in template_input_columns
-            ],
-            'template_calendar_columns': [
-                {
-                    'name': col['name'],
-                    'template_index': col['index']
-                }
-                for col in template_calendar_columns
-            ],
-            'total_template_columns': len(template_input_columns) + len(template_calendar_columns)
-        }
-        return mapping_config
-
-    def _get_matching_rules_for_column(self, column_name):
-        """Get the matching rules for a specific column."""
-        column_lower = column_name.lower().strip()
-
-        for rule_key, rules in self.column_matching_rules.items():
-            if any(keyword in column_lower for keyword in rule_key.split()):
-                return rules
-
-        return {
-            'keywords': column_lower.split(),
-            'exact_matches': [column_lower],
-            'data_patterns': [],
-            'exclusions': []
-        }
-
-def update_app_py_with_dynamic_mapping():
-    """Update app.py to use dynamic column mapping instead of hardcoded lists."""
-    try:
-        print("Updating app.py with dynamic mapping logic...")
-
-        app_py_path = project_root / "app.py"
-        if not app_py_path.exists():
-            print("app.py not found!")
-            return False
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = Config.BACKUP_DIR / f"app_py_backup_{timestamp}.py"
-
-        import shutil
-        shutil.copy2(app_py_path, backup_path)
-        print(f"app.py backed up to: {backup_path}")
-
-        new_app_content = generate_dynamic_app_py()
-        with open(app_py_path, 'w', encoding='utf-8') as f:
-            f.write(new_app_content)
-
-        print("app.py updated with dynamic mapping system.")
-        return True
-
-    except Exception as e:
-        print(f"Error updating app.py: {e}")
-        return False
-
-def generate_dynamic_app_py():
-    """Generate the new dynamic app.py content."""
-    return '''import pandas as pd
+import pandas as pd
 import os
 import eel
 import tkinter as tk
@@ -462,7 +116,7 @@ class DynamicColumnMapper:
                 'keywords': ['award', 'date'],
                 'exact_matches': ['rfp award', 'award date'],
                 'data_patterns': ['/', '-', '2024', '2025'],
-                'exclusions': ['anticipated', 'equals', 'probability']  # removed 'rfp'
+                'exclusions': ['anticipated', 'rfp', 'equals', 'probability']
             },
             'govwin': {
                 'keywords': ['govwin', 'iq'],
@@ -481,12 +135,14 @@ class DynamicColumnMapper:
             input_columns = []
             calendar_columns = []
 
+            # Extract template headers starting from column 2
             for col in range(2, sheet.max_column + 1):
                 cell_value = sheet.cell(row=4, column=col).value
                 if cell_value and str(cell_value).strip():
                     header_name = str(cell_value).strip()
                     header_lower = header_name.lower()
 
+                    # Classify as input or calendar column
                     calendar_keywords = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
                                          'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
                                          'q1', 'q2', 'q3', 'q4', 'quarter', '2024', '2025']
@@ -498,7 +154,7 @@ class DynamicColumnMapper:
                     else:
                         input_columns.append({'name': header_name, 'index': col})
                 else:
-                    if col <= 15:
+                    if col <= 15:  # Continue for early columns that might be empty
                         continue
                     else:
                         break
@@ -516,28 +172,31 @@ class DynamicColumnMapper:
             sheet = workbook.sheetnames[0]
             raw_sheet = workbook[sheet]
 
+            # Find header row - look for row with multiple proper column names
             for row_num in range(10, 20):
                 try:
                     row_data = list(raw_sheet.iter_rows(values_only=True, min_row=row_num, max_row=row_num))[0]
                     headers = [str(cell).strip() if cell else "" for cell in row_data]
 
+                    # Count how many cells look like proper column headers (not filter text)
                     proper_headers = 0
                     for header in headers:
                         if header and len(header) > 0:
+                            # Must be actual column names, not filter text
                             if ('manager' in header.lower() or 
                                 'opportunity' in header.lower() or 
                                 'salesforce' in header.lower() or
                                 'positioning' in header.lower() or
                                 'value' in header.lower() or
                                 'date' in header.lower() or
-                                'govwin' in header.lower()) and \
-                               'equals' not in header.lower() and \
-                               'probability' not in header.lower():
+                                'govwin' in header.lower()) and                                'equals' not in header.lower() and                                'probability' not in header.lower():
                                 proper_headers += 1
 
+                    # Need at least 5 proper column headers to be the header row
                     if proper_headers >= 5:
                         print(f"Found header row at row {row_num} with {proper_headers} proper headers")
 
+                        # Get sample data (next 3 rows)
                         sample_data = []
                         for sample_row in range(row_num + 1, row_num + 4):
                             try:
@@ -554,6 +213,7 @@ class DynamicColumnMapper:
                 except:
                     continue
 
+            # Fallback to row 14 if no proper header row found
             print("Using fallback row 14 for headers")
             row_data = list(raw_sheet.iter_rows(values_only=True, min_row=14, max_row=14))[0]
             headers = [str(cell).strip() if cell else "" for cell in row_data]
@@ -579,13 +239,13 @@ class DynamicColumnMapper:
             best_score = 0
 
             for raw_idx, raw_header in enumerate(raw_headers):
-                if raw_header is None or str(raw_header).strip() == "":
+                if not raw_header or not raw_header.strip():
                     continue
 
-                raw_header_lower = str(raw_header).lower().strip()
+                raw_header_lower = raw_header.lower().strip()
                 score = 0
 
-                # Candidate rules: predefined or fallback
+                # Build candidate rules: predefined matches or a dynamic fallback
                 candidate_rules = []
                 for rule_key, rules in self.column_matching_rules.items():
                     if any(keyword in template_name for keyword in rule_key.split()):
@@ -599,6 +259,7 @@ class DynamicColumnMapper:
                         'data_patterns': []
                     }]
 
+                # Score against candidate rules
                 for rules in candidate_rules:
                     exclusions = set(rules.get('exclusions', []))
                     if any(exclusion in raw_header_lower for exclusion in exclusions):
@@ -618,17 +279,9 @@ class DynamicColumnMapper:
                         pattern_matches = sum(1 for pattern in data_patterns if pattern in sample_text)
                         score += pattern_matches * 5
 
-                # Disambiguation boosts
-                if 'mag' in template_name and 'mag' in raw_header_lower and 'ceiling' not in raw_header_lower:
-                    score += 50
-                if 'ceiling' in template_name and 'ceiling' in raw_header_lower:
-                    score += 40
-                if 'award' in template_name and 'award' in raw_header_lower and 'anticipated' not in raw_header_lower:
-                    score += 50
-
-                if score > best_score:
-                    best_score = score
-                    best_match = {'raw_index': raw_idx, 'raw_header': raw_header, 'score': score}
+            if score > best_score:
+                best_score = score
+                best_match = {'raw_index': raw_idx, 'raw_header': raw_header, 'score': score}
 
             if best_match and best_score >= 10:
                 mapping[template_col['name']] = best_match
@@ -649,6 +302,7 @@ def parse_date(val):
 def process_and_merge_files(data_path):
     """
     DYNAMIC processing function that adapts to any input file structure.
+    No hardcoded column lists - maps columns in real-time based on what's available.
     """
     try:
         safe_log("--- Starting DYNAMIC Excel Processing ---")
@@ -663,23 +317,28 @@ def process_and_merge_files(data_path):
             safe_complete(False)
             return None
 
+        # Initialize dynamic mapper
         mapper = DynamicColumnMapper()
 
+        # Get template structure
         template_input_columns, template_calendar_columns = mapper.get_template_structure()
         safe_log(f"Template structure: {len(template_input_columns)} input cols, {len(template_calendar_columns)} calendar cols")
 
+        # Analyze raw data structure
         raw_data_info = mapper.analyze_raw_data(data_path)
         if not raw_data_info:
             safe_log("Error: Could not analyze raw data structure", 'error')
             safe_complete(False)
             return None
 
+        # Create dynamic column mapping
         column_mapping = mapper.map_columns(template_input_columns, raw_data_info)
         if not column_mapping:
             safe_log("Error: No columns could be mapped", 'error')
             safe_complete(False)
             return None
 
+        # --- Load and process raw data ---
         safe_log(f"Reading and cleaning data from '{Path(data_path).name}'...")
         wb_raw = load_workbook(data_path, data_only=True)
         sheet_name = wb_raw.sheetnames[0]
@@ -691,25 +350,22 @@ def process_and_merge_files(data_path):
         ]
 
         df_raw = pd.DataFrame(raw_values)
-
-        start_row = raw_data_info.get('data_start_row', 15) - 1
-        df_raw = df_raw.iloc[start_row:].copy()
-
-        if raw_data_info.get('headers') and (len(raw_data_info['headers']) > 0) and (str(raw_data_info['headers'][0]).strip() == ""):
-            df_raw.drop(columns=[0], inplace=True, errors='ignore')
-
+        df_raw = df_raw.iloc[14:].copy()  # Data starts at row 14 (0-indexed)
+        df_raw.drop(columns=[0], inplace=True, errors='ignore')  # Remove empty first column
         df_raw.reset_index(drop=True, inplace=True)
 
+        # --- DYNAMIC column selection based on mapping ---
         mapped_columns = []
         column_names = []
-        raw_to_template_mapping = {}
+        raw_to_template_mapping = {}  # Track which raw column goes to which template position
 
+        # Sort template columns by their template position to maintain order
         sorted_template_cols = sorted(template_input_columns, key=lambda x: x['index'])
 
         for template_col in sorted_template_cols:
             if template_col['name'] in column_mapping:
                 raw_index = column_mapping[template_col['name']]['raw_index']
-                if raw_index in df_raw.columns:
+                if raw_index < len(df_raw.columns):
                     mapped_columns.append(raw_index)
                     column_names.append(template_col['name'])
                     raw_to_template_mapping[template_col['name']] = raw_index
@@ -719,7 +375,10 @@ def process_and_merge_files(data_path):
             safe_complete(False)
             return None
 
+        # Keep track of original raw column indices before reindexing
         original_raw_indices = mapped_columns.copy()
+
+        # Select only the mapped columns - this will reindex to 0,1,2,3...
         df_raw = df_raw[mapped_columns]
         df_raw.columns = column_names
 
@@ -727,13 +386,15 @@ def process_and_merge_files(data_path):
         for i, (col_name, orig_raw_idx) in enumerate(zip(column_names, original_raw_indices)):
             safe_log(f"  {col_name} <- Raw Column {orig_raw_idx} (now pandas index {i})")
 
+        # Create mapping from template column name to pandas DataFrame index
         template_to_df_index = {name: i for i, name in enumerate(column_names)}
 
+        # --- Process data (currency, dates, etc.) ---
         for col in df_raw.columns:
             if 'value' in col.lower():
                 try:
                     df_raw[col] = pd.to_numeric(
-                        df_raw[col].astype(str).str.replace(r'[\\$,]', '', regex=True),
+                        df_raw[col].astype(str).str.replace(r'[\$,]', '', regex=True),
                         errors='coerce'
                     )
                 except Exception:
@@ -743,13 +404,15 @@ def process_and_merge_files(data_path):
         if len(df.columns) > 1:
             df.dropna(subset=[df.columns[1]], inplace=True)
 
+        # --- Exclude unwanted text ---
         EXCLUSION_KEYWORDS = [
             'Confidential Information - Do Not Distribute',
             'Copyright © 2000-2025 salesforce.com, inc. All rights reserved.'
         ]
-        for col in df.columns[:2]:
+        for col in df.columns[:2]:  # Check first two columns
             df = df[~df[col].astype(str).str.contains('|'.join(EXCLUSION_KEYWORDS), case=False, na=False)]
 
+        # --- Handle Total Row ---
         safe_log("Separating and sorting main data from total row...")
         df['temp_mgr_lower'] = df[df.columns[0]].astype(str).str.strip().str.lower()
 
@@ -757,6 +420,7 @@ def process_and_merge_files(data_path):
         total_df = df[total_row_mask].copy()
         main_df = df[~total_row_mask].copy()
 
+        # Sort data: managers first, then unassigned, then total
         has_mgr_mask = (main_df['temp_mgr_lower'] != '') & (main_df['temp_mgr_lower'] != 'nan')
         df_with_mgr = main_df[has_mgr_mask].copy()
         df_without_mgr = main_df[~has_mgr_mask].copy()
@@ -767,10 +431,12 @@ def process_and_merge_files(data_path):
 
         safe_log(f"Processed {len(df)} rows of data.")
 
+        # --- Load Template and write data ---
         safe_log("Loading template and writing data...")
         workbook = load_workbook(Config.TEMPLATE_PATH)
         sheet = workbook[Config.TEMPLATE_SHEET_NAME]
 
+        # Clear old data
         end_row = sheet.max_row
         for r in range(Config.DATA_START_ROW, end_row + 1):
             val = sheet.cell(row=r, column=1).value
@@ -778,17 +444,22 @@ def process_and_merge_files(data_path):
                 end_row = r - 1
                 break
 
+        # Clear template columns
         total_template_cols = len(template_input_columns) + len(template_calendar_columns)
         for r_idx in range(Config.DATA_START_ROW, end_row + 1):
             for c_idx in range(2, total_template_cols + 2):
                 sheet.cell(row=r_idx, column=c_idx).value = None
 
+        # Write new data to template - PRESERVE TEMPLATE COLUMN ORDER
         for i, row in enumerate(df.itertuples(index=False), start=Config.DATA_START_ROW):
             sheet.row_dimensions[i].height = 30
 
-            template_col_index = 2
+            # Write data in template column order, not DataFrame order
+            template_col_index = 2  # Start at column B (index 2)
+
             for template_col in sorted_template_cols:
                 if template_col['name'] in column_mapping and template_col['name'] in template_to_df_index:
+                    # Get the data from the correct DataFrame column
                     df_col_index = template_to_df_index[template_col['name']]
                     val = row[df_col_index]
 
@@ -808,11 +479,13 @@ def process_and_merge_files(data_path):
                     else:
                         cell.value = val
 
-                    if template_col_index == 3:
+                    # Text wrapping for opportunity name
+                    if template_col_index == 3:  # Opportunity Name column
                         cell.alignment = Alignment(wrap_text=True, vertical='top')
 
                 template_col_index += 1
 
+        # Save file
         downloads_path = Config.get_downloads_path()
         output_filename = Config.DEFAULT_OUTPUT_NAME
         output_path = downloads_path / output_filename
@@ -853,71 +526,6 @@ if __name__ == "__main__":
         except (SystemExit, MemoryError, KeyboardInterrupt):
             print("Application closed.")
         except Exception as e:
-            print("Failed to start GUI: {e}")
+            print(f"Failed to start GUI: {e}")
             print("Make sure the 'web' directory exists with index.html")
             sys.exit(1)
-'''
-
-# Main execution functions
-def analyze_template_and_update_app(input_file_path=None):
-    """Main entry point for template analysis - one-time conversion."""
-    return update_app_py_with_dynamic_mapping()
-
-def analyze_and_convert_to_dynamic_system():
-    """Convert the entire system to use dynamic column mapping."""
-    try:
-        print("Converting to DYNAMIC Column Mapping System")
-        print("=" * 60)
-
-        mapper = ColumnMapper()
-
-        headers = mapper.extract_template_headers()
-        if not headers:
-            print("Could not extract template headers")
-            return False
-
-        input_columns, calendar_columns = mapper.classify_template_columns(headers)
-
-        _ = mapper.generate_mapping_config(input_columns, calendar_columns)
-
-        print("Template Analysis Complete:")
-        print(f"   Input columns: {len(input_columns)}")
-        print(f"   Calendar columns: {len(calendar_columns)}")
-        print(f"   Total columns: {len(headers)}")
-
-        if update_app_py_with_dynamic_mapping():
-            print("\nSYSTEM CONVERSION COMPLETE")
-            print("=" * 60)
-            print("Your system now uses DYNAMIC column mapping")
-            print("No more hardcoded column lists")
-            print("Automatically adapts to any column changes")
-            print("Boss can add/remove/reorder columns freely")
-            print("\nTest by running:")
-            print('   python app.py "your_input_file.xlsx"')
-            return True
-        else:
-            print("Failed to update app.py")
-            return False
-
-    except Exception as e:
-        print(f"System conversion failed: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return False
-
-if __name__ == "__main__":
-    try:
-        Config.validate_config()
-        print("Configuration validated successfully")
-    except ValueError as e:
-        print(f"Configuration error: {e}")
-        sys.exit(1)
-
-    success = analyze_and_convert_to_dynamic_system()
-
-    if success:
-        print("\nConversion completed successfully.")
-        print("Your system is now fully adaptive.")
-    else:
-        print("\nConversion failed.")
-        sys.exit(1)
