@@ -136,3 +136,108 @@
 2025-08-12 16:59:10,382 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
 2025-08-12 17:00:25,391 [INFO] Template sent to Joe for column adjustment
 2025-08-12 17:00:25,391 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 08:55:56,901 [ERROR] Pipeline error: System error: Header values may not contain linefeed or carriage return characters (sender: None)
+2025-08-13 08:55:57,942 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 08:55:58,884 [INFO] Error notification email sent to user: Unknown
+2025-08-13 09:38:53,598 [ERROR] Failed to send help instructions: Header values may not contain linefeed or carriage return characters
+2025-08-13 09:38:53,599 [ERROR] Pipeline error: Failed to send help instructions (sender: Rohan.Anand@mag.us)
+2025-08-13 09:38:54,484 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 09:38:54,486 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 09:40:34,275 [ERROR] Failed to send help instructions: Header values may not contain linefeed or carriage return characters
+2025-08-13 09:40:34,276 [ERROR] Pipeline error: Failed to send help instructions (sender: Rohan.Anand@mag.us)
+2025-08-13 09:40:35,007 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 09:40:35,007 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:16:17,479 [ERROR] Pipeline error: System error: tuple index out of range (sender: None)
+2025-08-13 10:16:18,214 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:16:19,059 [INFO] Error notification email sent to user: Unknown
+2025-08-13 10:17:45,722 [ERROR] Failed to send help instructions: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:17:45,723 [ERROR] Pipeline error: Failed to send conversation starter (sender: Rohan.Anand@mag.us)
+2025-08-13 10:17:46,605 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:17:46,614 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:19:28,534 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:19:28,534 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:23:53,829 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:23:53,829 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:24:26,290 [ERROR] Pipeline error: System error: tuple index out of range (sender: None)
+2025-08-13 10:24:26,959 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:24:27,693 [INFO] Error notification email sent to user: Unknown
+2025-08-13 10:27:49,779 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:27:49,794 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:28:28,533 [ERROR] Failed to send template to user: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:28:28,533 [ERROR] Pipeline error: Failed to send template to user (sender: Rohan.Anand@mag.us)
+2025-08-13 10:28:29,388 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:28:29,398 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:32:45,812 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:32:45,812 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:33:10,206 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 10:33:10,206 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 10:35:44,122 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 10:35:44,122 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 10:39:30,710 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:39:30,710 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:40:11,842 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 10:40:11,842 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 10:40:52,261 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 10:40:52,261 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 10:49:36,096 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:49:36,096 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:49:58,729 [ERROR] Failed to send template to user: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:49:58,729 [ERROR] Pipeline error: Failed to send template to user (sender: Rohan.Anand@mag.us)
+2025-08-13 10:49:59,644 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:49:59,644 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:55:31,310 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 10:55:31,326 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 10:57:38,850 [ERROR] Failed to send template to user: Header values may not contain linefeed or carriage return characters
+2025-08-13 10:57:38,850 [ERROR] Pipeline error: Failed to send template to user (sender: Rohan.Anand@mag.us)
+2025-08-13 10:57:39,934 [INFO] Error alert email sent to Rohan.Anand@mag.us
+2025-08-13 10:57:39,934 [ERROR] Error email to user failed: Header values may not contain linefeed or carriage return characters
+2025-08-13 11:01:22,687 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:01:22,687 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 11:03:59,648 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 11:03:59,648 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 11:08:30,102 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:08:30,102 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 11:08:58,751 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 11:08:58,751 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 11:22:08,844 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:22:08,844 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 11:22:37,308 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 11:22:37,308 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 11:23:55,511 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 11:23:55,511 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 11:41:00,567 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:41:00,567 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 11:41:24,212 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:41:24,212 [INFO] Unclear message help sent to Rohan.Anand@mag.us
+2025-08-13 11:47:58,392 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 11:47:58,392 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 11:50:15,081 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 11:50:15,081 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 11:51:11,313 [INFO] Template update confirmation sent - Success: True
+2025-08-13 11:51:11,313 [INFO] Template successfully updated by Rohan.Anand@mag.us
+2025-08-13 11:52:17,681 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 11:52:17,681 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 12:31:06,918 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 12:31:06,918 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 12:44:19,084 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 12:44:19,084 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 12:47:13,017 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 12:47:13,017 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 12:47:41,028 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 12:47:41,028 [INFO] Unclear message help sent to Rohan.Anand@mag.us
+2025-08-13 13:28:11,277 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 13:28:11,277 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 13:28:51,948 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 13:28:51,949 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 13:32:20,804 [INFO] Template update confirmation sent - Success: True
+2025-08-13 13:32:20,805 [INFO] Template successfully updated by Rohan.Anand@mag.us
+2025-08-13 13:33:42,949 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 13:33:42,950 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 13:42:05,858 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 13:42:05,858 [INFO] Pipeline processed and sent successfully to Rohan.Anand@mag.us
+2025-08-13 13:55:02,772 [INFO] Help instructions sent to Rohan.Anand@mag.us
+2025-08-13 13:55:02,772 [INFO] New conversation started with Rohan.Anand@mag.us
+2025-08-13 13:55:44,543 [INFO] Template sent to Rohan.Anand@mag.us for column adjustment
+2025-08-13 13:55:44,543 [INFO] Template adjustment request processed for Rohan.Anand@mag.us
+2025-08-13 13:57:02,732 [INFO] Template update confirmation sent - Success: True
+2025-08-13 13:57:02,732 [INFO] Template successfully updated by Rohan.Anand@mag.us

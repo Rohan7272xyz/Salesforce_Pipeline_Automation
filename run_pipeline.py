@@ -1,19 +1,31 @@
+#!/usr/bin/env python3
+"""
+Production Pipeline with Robust Single Thread Embedding
+Implements the complete mitigation plan for reliable email threading
+"""
+
 import logging
 import time
 import sys
 from pathlib import Path
 
 # Add project root to Python path for imports
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "scripts"))
 
 from config import Config
 from scripts.fetch import download_latest_attachment
 from scripts.process import generate_gantt_chart
-from scripts.send_email import send_email_with_attachment
+from robust_email_sender import RobustEmailSender
 
-print("✅ Running the resilient pipeline script (v6 - Fixed Configuration)")
+# Configuration
+DEBUG_MODE = True  # Set to False for production
+THREADING_ENABLED = True  # Set to False to disable threading entirely
+
+print("✅ Running PRODUCTION pipeline with Single Thread Embedding (v8)")
+print(f"🐛 Debug mode: {'ON' if DEBUG_MODE else 'OFF'}")
+print(f"🔗 Threading: {'ENABLED' if THREADING_ENABLED else 'DISABLED'}")
 
 # Setup logging
 Config.ensure_directories()
@@ -23,112 +35,227 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
-def send_template_to_joe():
-    """Send the current template to Joe for modification."""
+# Initialize robust email sender
+email_sender = RobustEmailSender(debug=DEBUG_MODE)
+
+def send_help_instructions(sender, thread_info=None):
+    """Send help/instructions to user when they start a conversation."""
     try:
-        template_subject = "📋 Excel Template for Column Adjustment"
-        template_body = """Hi Joe,
+        help_body = """Hello,
 
-You requested to adjust columns in the pipeline system. I'm sending you the current Excel template that the automation system uses.
+I'm here to help you process your Salesforce pipeline files.
 
-INSTRUCTIONS:
-1. Make the same column changes to this template file that you made to your raw data report
-2. Save the file (keep the same format)
-3. Reply to this email with the updated template attached
-4. Use "Here" as the subject line (exactly like that - just the word "Here")
+WHAT I CAN DO:
 
-The system will automatically update to use your new template format.
+1. Assist in Sheet Formatting Changes: If you tell me to "Change Format", I'll send you the current excel template to modify. When you're done, reply with "Here" and attach the updated template.
 
-If you have any questions about this process, please let me know.
+2. Process Files: Attach your pipeline Excel file and I'll organize/process it for you.
+
+Ready to get started? Just reply to this email with what you'd like to do! All our conversations will stay in this email thread.
 
 Best regards,
-Rohan's Pipeline System
+MAG Pipeline Bot
 
 ---
-This is an automated response to your "Adjust Columns" request.
+Type "Help" anytime to see these instructions again
+"""
+        
+        # Use threading if enabled and thread_info provided
+        use_threading = thread_info if THREADING_ENABLED else None
+        
+        success = email_sender.send_email(
+            to_address=sender,
+            subject="Interact with the MAG bot to configure your file",
+            body=help_body,
+            cc_address=Config.YOUR_EMAIL,
+            thread_info=use_threading
+        )
+        
+        if success:
+            print(f"📧 Help instructions sent to {sender}")
+            logging.info(f"Help instructions sent to {sender}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Failed to send help instructions: {e}")
+        logging.error(f"Failed to send help instructions: {e}")
+        return False
+
+def send_template_to_user(sender, thread_info=None):
+    """Send the current template to user for modification."""
+    try:
+        template_body = """Hello,
+
+I'm sending you the current Excel template that the system uses.
+
+INSTRUCTIONS:
+1. Download and open the attached template file
+2. Make your column/format changes to this template
+3. Save the file as .xlsx format
+4. IMPORTANT: Reply to this email thread with your updated template attached and "Here" typed in the message body
+5. IMPORTANT: Type "Here" in the message body 
+
+Best regards,
+MAG Pipeline Bot 
+
+---
+Automated response to your "Adjust Columns" request
 """
         
         if not Config.TEMPLATE_PATH.exists():
             raise FileNotFoundError(f"Template file not found at {Config.TEMPLATE_PATH}")
         
-        send_email_with_attachment(
-            to_address=Config.JOE_EMAIL,
-            cc_address=Config.YOUR_EMAIL,
-            subject=template_subject,
+        # Use threading if enabled and thread_info provided
+        use_threading = thread_info if THREADING_ENABLED else None
+        
+        success = email_sender.send_email(
+            to_address=sender,
+            subject="Template for Column Adjustment",
             body=template_body,
-            attachment_path=str(Config.TEMPLATE_PATH)
+            attachment_path=str(Config.TEMPLATE_PATH),
+            cc_address=Config.YOUR_EMAIL,
+            thread_info=use_threading
         )
         
-        print(f"📧 Template sent to Joe ({Config.JOE_EMAIL})")
-        logging.info(f"Template sent to Joe for column adjustment")
-        return True
+        if success:
+            print(f"📧 Template sent to {sender}")
+            logging.info(f"Template sent to {sender} for column adjustment")
+        
+        return success
         
     except Exception as e:
-        print(f"❌ Failed to send template to Joe: {e}")
-        logging.error(f"Failed to send template to Joe: {e}")
+        print(f"❌ Failed to send template to user: {e}")
+        logging.error(f"Failed to send template to user: {e}")
         return False
 
-def send_template_confirmation(sender, success=True):
+def send_template_confirmation(sender, success=True, thread_info=None, error_details=None):
     """Send confirmation email about template update."""
     try:
         if success:
-            subject = "✅ Template Updated Successfully"
-            body = """Hi Joe,
+            body = """Hello,
 
-Great news! The pipeline system template has been successfully updated with your changes.
+Your template has been successfully updated in my server.
 
-WHAT HAPPENED:
-- Your new template has been installed
-- The old template was backed up for safety
-- The system is now ready to process pipeline reports with the new column structure
+The system is now ready to process pipeline files with your new formatting change.
 
-The automated pipeline processing will now work correctly with your updated data format.
+You can now attach and send your pipeline files for processing.
 
 Best regards,
-Rohan's Pipeline System
+MAG Pipeline Bot
 
 ---
-This is an automated confirmation of your template update.
+Automated confirmation of successful template update
 """
         else:
-            subject = "❌ Template Update Failed"
-            body = """Hi Joe,
+            body = f"""Oops! There was an issue updating the template. ❌
 
-There was an issue updating the pipeline system template.
+ERROR DETAILS
+{error_details or 'Unknown error occurred'}
 
 WHAT TO DO:
-1. Make sure your email subject line is exactly "Here" (just that word)
+1. Make sure you typed "Here" at the beginning of your message
 2. Make sure you attached an Excel (.xlsx) file
-3. Try sending the template again
+3. Try replying to this thread again with:
+   - The word "Here" in the message body
+   - Your template file attached
+
+ TIPS:
+• Don't include extra text before "Here"
+• Make sure the file is .xlsx format
+• Check that the file isn't corrupted
 
 If you continue having issues, please contact Rohan directly at Rohan.Anand@mag.us
 
 Best regards,
-Rohan's Pipeline System
+MAG Pipeline Bot 
 
 ---
-This is an automated error notification.
+Automated error notification - template update failed
 """
         
-        send_email_with_attachment(
+        # Use threading if enabled and thread_info provided
+        use_threading = thread_info if THREADING_ENABLED else None
+        
+        subject = "Template Update Confirmation" if success else "Template Update Failed"
+        
+        email_success = email_sender.send_email(
             to_address=sender,
-            cc_address=Config.YOUR_EMAIL,
             subject=subject,
             body=body,
-            attachment_path=None
+            cc_address=Config.YOUR_EMAIL,
+            thread_info=use_threading
         )
         
-        print(f"📧 Template confirmation sent to {sender}")
-        logging.info(f"Template update confirmation sent - Success: {success}")
-        return True
+        if email_success:
+            print(f"📧 Template confirmation sent to {sender}")
+            logging.info(f"Template update confirmation sent - Success: {success}")
+        
+        return email_success
         
     except Exception as e:
         print(f"❌ Failed to send template confirmation: {e}")
         logging.error(f"Failed to send template confirmation: {e}")
         return False
 
+def send_successful_processing_email(sender, final_file, thread_info=None):
+    """Send successful processing notification with file."""
+    try:
+        # Determine the greeting based on sender
+        if "joseph.findley" in sender.lower() or "joe" in sender.lower():
+            greeting_name = "Joe"
+        else:
+            # Extract first name from email or use a generic greeting
+            sender_parts = sender.split('@')[0].split('.')
+            if len(sender_parts) > 0:
+                greeting_name = sender_parts[0].title()
+            else:
+                greeting_name = "there"
+        
+        success_body = f"""Hi {greeting_name}!
+
+I have successfully processed your Salesforce pipeline and made all the necessary adjustments.
+
+WHAT I DID:
+- Applied all formatting rules
+- Sorted data by capture manager
+- Generated the Gantt chart view
+- Cleaned up the data presentation
+
+The formatted file is attached.
+
+Best regards,
+MAG Pipeline Bot
+
+---
+Pipeline processed at {time.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        
+        # Use threading if enabled and thread_info provided
+        use_threading = thread_info if THREADING_ENABLED else None
+        
+        success = email_sender.send_email(
+            to_address=sender,
+            subject="Your Processed Salesforce Pipeline",
+            body=success_body,
+            attachment_path=final_file,
+            cc_address=Config.YOUR_EMAIL,
+            thread_info=use_threading
+        )
+        
+        if success:
+            logging.info(f"Pipeline processed and sent successfully to {sender}")
+            print("✅ Pipeline processing completed successfully.")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Failed to send success email: {e}")
+        logging.error(f"Failed to send success email: {e}")
+        return False
+
 def send_error_alert_email(error_message, sender_email):
-    """Send error alert email to you."""
+    """Send error alert email to admin."""
     try:
         alert_subject = "🚨 URGENT: Salesforce Pipeline Automation Error"
         alert_body = f"""PIPELINE ERROR ALERT
@@ -139,7 +266,7 @@ ERROR: {error_message}
 
 The automated Salesforce pipeline system has encountered an error and needs your attention.
 
-Joe has been automatically notified that there's an issue and that you're working on a fix.
+The user has been automatically notified that there's an issue and that you're working on a fix.
 
 Please check the system logs and resolve the issue as soon as possible.
 
@@ -147,82 +274,87 @@ Please check the system logs and resolve the issue as soon as possible.
 This is an automated error alert from your pipeline system.
 """
         
-        send_email_with_attachment(
+        success = email_sender.send_email(
             to_address=Config.YOUR_EMAIL,
             subject=alert_subject,
             body=alert_body,
-            attachment_path=None
+            thread_info=None  # Always send errors as new threads
         )
         
-        print(f"📧 Error alert sent to you ({Config.YOUR_EMAIL})")
-        logging.info(f"Error alert email sent to {Config.YOUR_EMAIL}")
-        return True
+        if success:
+            print(f"📧 Error alert sent to admin ({Config.YOUR_EMAIL})")
+            logging.info(f"Error alert email sent to {Config.YOUR_EMAIL}")
+        
+        return success
         
     except Exception as e:
         print(f"❌ Failed to send error alert email: {e}")
         logging.error(f"Error alert email failed: {e}")
         return False
 
-def send_error_email_to_joe(error_message, sender_email):
-    """Send error notification email to Joe."""
+def send_error_email_to_user(error_message, sender_email, thread_info=None):
+    """Send error notification email to user."""
     try:
-        error_subject = "⚠️ Salesforce Pipeline Automation - Technical Issue Detected"
-        error_body = f"""Hi Joe,
+        error_body = f"""Hi there,
 
-I wanted to let you know that there was a technical issue with the automated Salesforce pipeline processing system.
+I wanted to let you know that there was a technical issue with processing your request.
 
 ISSUE DETAILS:
-- Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
-- Original sender: {sender_email}
-- Error: {error_message}
+• Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
+• Error: {error_message}
 
 NEXT STEPS:
-I (Rohan) have been automatically notified and am already working on identifying and fixing the issue. I will have this resolved as quickly as possible and will follow up with you once the system is back online.
+• Rohan has been automatically notified
+• He's working on identifying and fixing the issue
+• The system will be back online as quickly as possible
 
-In the meantime, if you need immediate pipeline processing, please feel free to send me the file directly and I can process it manually.
+In the meantime, if you need immediate pipeline processing, please contact Rohan directly at Rohan.Anand@mag.us
 
 Best regards,
-Rohan's Automated Pipeline System
+MAG Pipeline Bot 
 
 ---
-This is an automated error notification. If you have questions, please contact Rohan.Anand@mag.us directly.
+Automated error notification
 """
         
-        send_email_with_attachment(
-            to_address=Config.JOE_EMAIL,
-            cc_address=Config.YOUR_EMAIL,
-            subject=error_subject,
+        # Use threading if enabled and thread_info provided
+        use_threading = thread_info if THREADING_ENABLED else None
+        
+        success = email_sender.send_email(
+            to_address=sender_email,
+            subject="Pipeline Processing Error",
             body=error_body,
-            attachment_path=None
+            cc_address=Config.YOUR_EMAIL,
+            thread_info=use_threading
         )
         
-        print(f"📧 Error notification sent to Joe ({Config.JOE_EMAIL})")
-        logging.info(f"Error notification email sent to Joe: {Config.JOE_EMAIL}")
-        return True
+        if success:
+            print(f"📧 Error notification sent to user ({sender_email})")
+            logging.info(f"Error notification email sent to user: {sender_email}")
+        
+        return success
         
     except Exception as e:
-        print(f"❌ Failed to send error email to Joe: {e}")
-        logging.error(f"Error email to Joe failed: {e}")
+        print(f"❌ Failed to send error email to user: {e}")
+        logging.error(f"Error email to user failed: {e}")
         return False
 
-def handle_error(error_message, sender_email=None):
-    """Handle errors by sending alert email to you and notification email to Joe."""
+def handle_error(error_message, sender_email=None, thread_info=None):
+    """Handle errors by sending alert email to admin and notification email to user."""
     print(f"🚨 PIPELINE ERROR: {error_message}")
     
     # Log the error
     logging.error(f"Pipeline error: {error_message} (sender: {sender_email})")
     
-    # Send alert email to you
+    # Send alert email to admin
     send_error_alert_email(error_message, sender_email or "Unknown")
     
-    # Send error email to Joe
+    # Send error email to user (with threading if available)
     if sender_email:
-        send_error_email_to_joe(error_message, sender_email)
-    else:
-        send_error_email_to_joe(error_message, "Unknown")
+        send_error_email_to_user(error_message, sender_email, thread_info)
 
 def main():
-    """Main pipeline loop."""
+    """Main pipeline loop with robust single thread support."""
     try:
         # Validate configuration before starting
         Config.validate_config()
@@ -234,88 +366,125 @@ def main():
         return
     
     print(f"🔄 Starting pipeline monitoring (checking every {Config.CHECK_INTERVAL_SECONDS} seconds)")
+    print("📧 Single Thread Embedding: ACTIVE")
     
     while True:
-        print("🔍 Checking for new emails...")
+        if DEBUG_MODE:
+            print("🔍 Checking for new emails...")
         
         try:
             result = download_latest_attachment()
             if result:
                 action_type = result[0]
+                print(f"🎯 Action detected: {action_type}")
                 
-                if action_type == "ADJUST_COLUMNS":
-                    # Joe wants to adjust columns - send him the template
+                if action_type == "START_CONVERSATION":
+                    # User wants to start a new conversation
                     sender = result[1]
+                    subject = result[2]
+                    thread_info = result[3]
+                    print(f"🚀 Starting new conversation with {sender}")
+                    
+                    if send_help_instructions(sender, None):  # Don't thread the initial welcome
+                        logging.info(f"New conversation started with {sender}")
+                    else:
+                        handle_error("Failed to send conversation starter", sender, None)
+                
+                elif action_type in ["ADJUST_COLUMNS", "THREAD_ADJUST_COLUMNS"]:
+                    # User wants to adjust columns
+                    sender = result[1]
+                    subject = result[2]
+                    thread_info = result[3]
                     print(f"🔧 Column adjustment request from {sender}")
                     
-                    if send_template_to_joe():
+                    # Use threading for THREAD_ADJUST_COLUMNS
+                    use_threading = thread_info if action_type == "THREAD_ADJUST_COLUMNS" else None
+                    
+                    if send_template_to_user(sender, use_threading):
                         logging.info(f"Template adjustment request processed for {sender}")
                     else:
-                        handle_error("Failed to send template to Joe", sender)
+                        handle_error("Failed to send template to user", sender, thread_info)
                 
-                elif action_type == "TEMPLATE_UPDATED":
-                    # Joe sent back the updated template - confirm success
+                elif action_type in ["TEMPLATE_UPDATED", "THREAD_TEMPLATE_UPDATED"]:
+                    # User sent back the updated template - confirm success
                     sender = result[1]
+                    template_path = result[2]
+                    thread_info = result[3]
                     print(f"✅ Template successfully updated by {sender}")
                     
-                    send_template_confirmation(sender, success=True)
+                    # Use threading for THREAD_TEMPLATE_UPDATED
+                    use_threading = thread_info if action_type == "THREAD_TEMPLATE_UPDATED" else None
+                    
+                    send_template_confirmation(sender, success=True, thread_info=use_threading)
                     logging.info(f"Template successfully updated by {sender}")
                 
-                elif action_type == "TEMPLATE_UPDATE_FAILED":
-                    # Template update failed - notify Joe
+                elif action_type in ["TEMPLATE_UPDATE_FAILED", "THREAD_TEMPLATE_UPDATE_FAILED"]:
+                    # Template update failed - notify user
                     sender = result[1]
-                    error_details = result[2] if len(result) > 2 else "Unknown error"
+                    error_details = result[2]
+                    thread_info = result[3]
                     print(f"❌ Template update failed from {sender}: {error_details}")
                     
-                    send_template_confirmation(sender, success=False)
+                    # Use threading for THREAD_TEMPLATE_UPDATE_FAILED
+                    use_threading = thread_info if action_type == "THREAD_TEMPLATE_UPDATE_FAILED" else None
+                    
+                    send_template_confirmation(sender, success=False, thread_info=use_threading, error_details=error_details)
                     logging.error(f"Template update failed from {sender}: {error_details}")
                 
-                elif action_type == "NORMAL_PROCESSING":
+                elif action_type in ["NORMAL_PROCESSING", "THREAD_NORMAL_PROCESSING"]:
                     # Regular pipeline processing
-                    file_path, sender = result[1], result[2]
+                    file_path = result[1]
+                    sender = result[2]
+                    thread_info = result[3]
                     print(f"📊 Processing pipeline file from: {sender}")
                     
                     try:
                         final_file = generate_gantt_chart(file_path)
                         print(f"📄 Generated file: {final_file}")
                         
-                        # Determine the greeting based on sender
-                        if "joseph.findley" in sender.lower() or "joe" in sender.lower():
-                            greeting_name = "Joe"
+                        # Use threading for THREAD_NORMAL_PROCESSING
+                        use_threading = thread_info if action_type == "THREAD_NORMAL_PROCESSING" else None
+                        
+                        if send_successful_processing_email(sender, final_file, use_threading):
+                            logging.info(f"Pipeline processed and sent successfully to {sender}")
                         else:
-                            # Extract first name from email or use a generic greeting
-                            sender_parts = sender.split('@')[0].split('.')
-                            if len(sender_parts) > 0:
-                                greeting_name = sender_parts[0].title()
-                            else:
-                                greeting_name = "there"
-                        
-                        print(f"📧 Sending processed pipeline to {sender} with CC to {Config.YOUR_EMAIL}")
-                        
-                        send_email_with_attachment(
-                            to_address=sender,
-                            cc_address=Config.YOUR_EMAIL,
-                            subject="See the updated DEC & C5S Pipeline",
-                            body=(
-                                f"Hi {greeting_name},\n\n"
-                                "I have successfully processed the Salesforce pipeline for you and made the necessary adjustments."
-                                " Should you have any questions or identify any problems, please do not hesitate to reach out to me directly at Rohan.Anand@mag.us.\n\n"
-                                "Best regards,\n"
-                                "Rohan\n\n\n\n"
-                            ),
-                            attachment_path=final_file
-                        )
-                        logging.info(f"Pipeline processed and sent successfully to {sender}")
-                        print("✅ Pipeline processing completed successfully.")
+                            handle_error("Failed to send processed file", sender, thread_info)
                         
                     except Exception as e:
                         error_msg = f"Processing failed for {sender}: {str(e)}"
-                        handle_error(error_msg, sender)
+                        handle_error(error_msg, sender, thread_info)
+                
+                elif action_type == "THREAD_UNCLEAR":
+                    # Thread message was unclear - send help
+                    sender = result[1]
+                    subject = result[2] 
+                    thread_info = result[3]
+                    print(f"❓ Unclear thread message from {sender}")
+                    
+                    if send_help_instructions(sender, thread_info):
+                        logging.info(f"Unclear message help sent to {sender}")
+                    else:
+                        handle_error("Failed to send unclear message help", sender, thread_info)
+                
+                elif action_type == "HELP":
+                    # Legacy help request
+                    sender = result[1]
+                    subject = result[2]
+                    thread_info = result[3]
+                    print(f"ℹ️ Help request from {sender}")
+                    
+                    if send_help_instructions(sender, None):  # Don't thread legacy help
+                        logging.info(f"Help instructions sent to {sender}")
+                    else:
+                        handle_error("Failed to send help instructions", sender, None)
                         
         except Exception as e:
             # Handle system-level errors (IMAP connection, etc.)
             error_msg = f"System error: {str(e)}"
             handle_error(error_msg)
+            if DEBUG_MODE:
+                import traceback
+                print(traceback.format_exc())
 
         time.sleep(Config.CHECK_INTERVAL_SECONDS)
 

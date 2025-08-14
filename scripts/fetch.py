@@ -1,6 +1,7 @@
 import imaplib
 import email
 import shutil
+import re
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -55,12 +56,143 @@ def find_latest_input_file():
         print(f"⚠️ Error finding latest input file: {e}")
         return None
 
+def extract_thread_info(msg):
+    """Extract threading information from email headers."""
+    thread_info = {
+        'message_id': msg.get('Message-ID'),
+        'in_reply_to': msg.get('In-Reply-To'),
+        'references': msg.get('References'),
+        'subject': msg.get('Subject', '').strip()
+    }
+    return thread_info
+
+def is_thread_continuation(msg):
+    """Check if this email is part of an existing thread."""
+    thread_info = extract_thread_info(msg)
+    
+    # Check if it has In-Reply-To or References headers
+    if thread_info['in_reply_to'] or thread_info['references']:
+        return True, thread_info
+    
+    # Check if subject indicates it's a reply (Re: pattern)
+    subject = thread_info['subject'].lower()
+    if subject.startswith('re:') and 'interact with the mag bot' in subject:
+        return True, thread_info
+    
+    return False, thread_info
+
+def parse_email_body_for_commands(body_text):
+    """
+    FIXED: Parse email body for command keywords with proper user message extraction.
+    Now correctly handles case-insensitive matching for "change format"
+    """
+    if not body_text:
+        return None
+    
+    try:
+        # Clean and normalize the body text
+        body_lower = body_text.lower().strip()
+        
+        # Remove common email artifacts
+        body_lower = re.sub(r'<[^>]+>', '', body_lower)  # Remove HTML tags
+        body_lower = re.sub(r'\s+', ' ', body_lower)  # Normalize whitespace
+        
+        print(f"📝 Full body preview: {body_lower[:100]}...")
+        
+        # IMPROVED: Look for separator patterns and extract text BEFORE them
+        separator_patterns = [
+            '________________________________',
+            'from: magpipelinemanager@gmail.com',
+            'from:magpipelinemanager@gmail.com',
+            'sent: monday',
+            'sent: tuesday', 
+            'sent: wednesday',
+            'sent: thursday',
+            'sent: friday',
+            'sent: saturday',
+            'sent: sunday',
+            'hi there',
+            'i see you want to adjust',
+            'hello,',
+            "i'm here to help",
+            "i'm sending you"
+        ]
+        
+        # Find the earliest separator
+        earliest_separator_pos = len(body_lower)
+        for pattern in separator_patterns:
+            pos = body_lower.find(pattern)
+            if pos != -1 and pos < earliest_separator_pos:
+                earliest_separator_pos = pos
+        
+        # Extract user message (everything before the first separator)
+        if earliest_separator_pos < len(body_lower):
+            user_message = body_lower[:earliest_separator_pos].strip()
+        else:
+            user_message = body_lower.strip()
+        
+        # Clean up the user message
+        user_message = re.sub(r'\s+', ' ', user_message)
+        user_message = user_message.strip()
+        
+        print(f"📝 User message only: {user_message[:100]}...")
+        
+        # CHECK "HERE" FIRST - if user message starts with "here", that takes priority
+        if (user_message.startswith('here') or 
+            user_message == 'here' or
+            user_message.startswith('here ') or
+            user_message.startswith('here.')):
+            print("📥 Command detected: HERE (template update)")
+            return "HERE"
+        
+        # FIXED: Check for "change format" with lowercase comparison since user_message is lowercase
+        if 'change format' in user_message or 'adjust column' in user_message:
+            print("🔧 Command detected: Change Format")
+            return "ADJUST_COLUMNS"
+        
+        # Check if it's just confidentiality notice or very short
+        if (len(user_message) < 10 or
+            'confidentiality notice' in user_message or
+            'start conversation' in user_message or
+            user_message == ''):
+            print("ℹ️ Command detected: HELP/START (sending instructions)")
+            return "HELP"
+        
+        # No specific command - regular processing
+        print(f"ℹ️ No specific command detected in user message")
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Error parsing email body for commands: {e}")
+        return None
+
+def get_email_body(msg):
+    """Extract the email body text."""
+    body = ""
+    
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                charset = part.get_content_charset() or 'utf-8'
+                try:
+                    body += part.get_payload(decode=True).decode(charset)
+                except:
+                    body += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+    else:
+        charset = msg.get_content_charset() or 'utf-8'
+        try:
+            body = msg.get_payload(decode=True).decode(charset)
+        except:
+            body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+    
+    return body.strip()
+
 def download_latest_attachment():
     """
-    Download latest attachment and handle different email subjects:
-    - Normal processing: Regular pipeline reports
-    - "Adjust Columns": Send template to Joe for updates
-    - "Here": Replace current template with Joe's updated version
+    Download latest attachment and handle different email types:
+    - "Start conversation": Initiate bot interaction thread
+    - Thread continuation with body commands: "Change Format", "Here"
+    - Thread continuation with file: Normal pipeline processing
     """
     try:
         # Validate configuration first
@@ -109,103 +241,218 @@ def download_latest_attachment():
             mail.logout()
             return None
 
-        # Check for special subjects
-        if subject.lower() == "adjust columns":
-            print("🔧 TEMPLATE ADJUSTMENT REQUEST DETECTED!")
+        # Extract threading information
+        is_thread, thread_info = is_thread_continuation(msg)
+        
+        # Check for "Start conversation" to initiate new thread
+        if subject.lower() == "start conversation":
+            print("🚀 NEW CONVERSATION START DETECTED!")
             mail.logout()
-            return ("ADJUST_COLUMNS", sender, subject)
+            return ("START_CONVERSATION", sender, subject, thread_info)
+        
+        # If it's a thread continuation, parse body for commands
+        if is_thread:
+            print("🔗 THREAD CONTINUATION DETECTED!")
+            body_text = get_email_body(msg)
+            print(f"📝 Email body preview: {body_text[:100]}...")
             
-        elif subject.lower() == "here":
-            print("📥 NEW TEMPLATE RECEIVED!")
-            template_found = False
-            for part in msg.walk():
-                if part.get_content_maintype() == "multipart":
-                    continue
-                if part.get("Content-Disposition") is None:
-                    continue
-
-                filename = part.get_filename()
-                if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    temp_template_path = Config.INPUT_DIR / f"new_template_{timestamp}.xlsx"
-
-                    try:
-                        with open(temp_template_path, "wb") as f:
-                            f.write(part.get_payload(decode=True))
-
-                        print(f"📥 Downloaded new template to: {temp_template_path}")
-                        
-                        # Replace the current template
-                        if replace_template(temp_template_path):
-                            try:
-                                # CRITICAL FIX: Find the latest input file and pass it to template analyzer
-                                latest_input_file = find_latest_input_file()
-                                
-                                from template_analyzer import analyze_template_and_update_app
-                                print(f"🔍 Running template analyzer with input file: {latest_input_file}")
-                                
-                                # Pass the latest input file to ensure correct column mapping
-                                if analyze_template_and_update_app(latest_input_file):
-                                    mail.logout()
-                                    return ("TEMPLATE_UPDATED", sender, str(temp_template_path))
-                                else:
-                                    mail.logout()
-                                    return ("TEMPLATE_UPDATE_FAILED", sender, "Failed to update app.py")
-                            except Exception as e:
-                                print(f"❌ Error during app update: {e}")
-                                import traceback
-                                print(traceback.format_exc())
-                                mail.logout()
-                                return ("TEMPLATE_UPDATE_FAILED", sender, str(e))
-                        else:
-                            mail.logout()
-                            return ("TEMPLATE_UPDATE_FAILED", sender, "Failed to replace template")
-                            
-                    except Exception as e:
-                        print(f"❌ Error saving template: {e}")
-                        mail.logout()
-                        return ("TEMPLATE_UPDATE_FAILED", sender, str(e))
-                        
-                    template_found = True
-                    break
-
-            if not template_found:
-                print("❌ No Excel template found in 'Here' email.")
+            # Parse body for commands using FIXED function
+            command = parse_email_body_for_commands(body_text)
+            
+            if command == 'ADJUST_COLUMNS':
+                print("🔧 Change Format command found in thread!")
                 mail.logout()
-                return ("TEMPLATE_UPDATE_FAILED", sender, "No attachment found")
+                return ("THREAD_ADJUST_COLUMNS", sender, subject, thread_info)
+            
+            elif command == 'HERE':
+                print("📥 HERE command found in thread - looking for template...")
+                # Look for Excel attachment
+                template_found = False
+                for part in msg.walk():
+                    if part.get_content_maintype() == "multipart":
+                        continue
+                    if part.get("Content-Disposition") is None:
+                        continue
 
-        # Normal pipeline processing
+                    filename = part.get_filename()
+                    if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        temp_template_path = Config.INPUT_DIR / f"new_template_{timestamp}.xlsx"
+
+                        try:
+                            with open(temp_template_path, "wb") as f:
+                                f.write(part.get_payload(decode=True))
+
+                            print(f"📥 Downloaded new template to: {temp_template_path}")
+                            
+                            # Replace the current template
+                            if replace_template(temp_template_path):
+                                try:
+                                    # Find the latest input file and pass it to template analyzer
+                                    latest_input_file = find_latest_input_file()
+                                    
+                                    from template_analyzer import analyze_template_and_update_app
+                                    print(f"🔍 Running template analyzer with input file: {latest_input_file}")
+                                    
+                                    if analyze_template_and_update_app(latest_input_file):
+                                        mail.logout()
+                                        return ("THREAD_TEMPLATE_UPDATED", sender, str(temp_template_path), thread_info)
+                                    else:
+                                        mail.logout()
+                                        return ("THREAD_TEMPLATE_UPDATE_FAILED", sender, "Failed to update app.py", thread_info)
+                                except Exception as e:
+                                    print(f"❌ Error during app update: {e}")
+                                    import traceback
+                                    print(traceback.format_exc())
+                                    mail.logout()
+                                    return ("THREAD_TEMPLATE_UPDATE_FAILED", sender, str(e), thread_info)
+                            else:
+                                mail.logout()
+                                return ("THREAD_TEMPLATE_UPDATE_FAILED", sender, "Failed to replace template", thread_info)
+                                
+                        except Exception as e:
+                            print(f"❌ Error saving template: {e}")
+                            mail.logout()
+                            return ("THREAD_TEMPLATE_UPDATE_FAILED", sender, str(e), thread_info)
+                            
+                        template_found = True
+                        break
+
+                if not template_found:
+                    print("❌ No Excel template found in 'Here' thread message.")
+                    mail.logout()
+                    return ("THREAD_TEMPLATE_UPDATE_FAILED", sender, "No attachment found", thread_info)
+            
+            else:
+                # Check for file attachment (normal pipeline processing in thread)
+                attachment_found = False
+                for part in msg.walk():
+                    if part.get_content_maintype() == "multipart":
+                        continue
+                    if part.get("Content-Disposition") is None:
+                        continue
+
+                    filename = part.get_filename()
+                    if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        saved_path = Config.INPUT_DIR / f"pipeline_{timestamp}.xlsx"
+
+                        try:
+                            with open(saved_path, "wb") as f:
+                                f.write(part.get_payload(decode=True))
+
+                            print(f"📥 Saved pipeline data from {sender} to: {saved_path}")
+                            mail.logout()
+                            return ("THREAD_NORMAL_PROCESSING", str(saved_path), sender, thread_info)
+                            
+                        except Exception as e:
+                            print(f"❌ Error saving attachment: {e}")
+                            mail.logout()
+                            return None
+                            
+                        attachment_found = True
+                        break
+
+                if not attachment_found:
+                    print("📂 No recognized command or attachment found in thread continuation.")
+                    mail.logout()
+                    return ("THREAD_UNCLEAR", sender, subject, thread_info)
+        
+        # Legacy support: Check for old-style subject-based commands (for backward compatibility)
         else:
-            attachment_found = False
-            for part in msg.walk():
-                if part.get_content_maintype() == "multipart":
-                    continue
-                if part.get("Content-Disposition") is None:
-                    continue
+            print("📧 Processing as legacy email (not in thread)")
+            
+            if subject.lower() == "change format":
+                print("🔧 LEGACY: Column adjustment request")
+                mail.logout()
+                return ("ADJUST_COLUMNS", sender, subject, thread_info)
+                
+            elif subject.lower() == "here":
+                print("📥 LEGACY: Template update")
+                # Handle same as before for backward compatibility
+                template_found = False
+                for part in msg.walk():
+                    if part.get_content_maintype() == "multipart":
+                        continue
+                    if part.get("Content-Disposition") is None:
+                        continue
 
-                filename = part.get_filename()
-                if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    saved_path = Config.INPUT_DIR / f"pipeline_{timestamp}.xlsx"
+                    filename = part.get_filename()
+                    if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        temp_template_path = Config.INPUT_DIR / f"new_template_{timestamp}.xlsx"
 
-                    try:
-                        with open(saved_path, "wb") as f:
-                            f.write(part.get_payload(decode=True))
+                        try:
+                            with open(temp_template_path, "wb") as f:
+                                f.write(part.get_payload(decode=True))
 
-                        print(f"📥 Saved pipeline data from {sender} to: {saved_path}")
-                        mail.logout()
-                        return ("NORMAL_PROCESSING", str(saved_path), sender)
-                        
-                    except Exception as e:
-                        print(f"❌ Error saving attachment: {e}")
-                        mail.logout()
-                        return None
-                        
-                    attachment_found = True
-                    break
+                            print(f"📥 Downloaded new template to: {temp_template_path}")
+                            
+                            if replace_template(temp_template_path):
+                                try:
+                                    latest_input_file = find_latest_input_file()
+                                    from template_analyzer import analyze_template_and_update_app
+                                    print(f"🔍 Running template analyzer with input file: {latest_input_file}")
+                                    
+                                    if analyze_template_and_update_app(latest_input_file):
+                                        mail.logout()
+                                        return ("TEMPLATE_UPDATED", sender, str(temp_template_path), thread_info)
+                                    else:
+                                        mail.logout()
+                                        return ("TEMPLATE_UPDATE_FAILED", sender, "Failed to update app.py", thread_info)
+                                except Exception as e:
+                                    print(f"❌ Error during app update: {e}")
+                                    mail.logout()
+                                    return ("TEMPLATE_UPDATE_FAILED", sender, str(e), thread_info)
+                            else:
+                                mail.logout()
+                                return ("TEMPLATE_UPDATE_FAILED", sender, "Failed to replace template", thread_info)
+                                
+                        except Exception as e:
+                            print(f"❌ Error saving template: {e}")
+                            mail.logout()
+                            return ("TEMPLATE_UPDATE_FAILED", sender, str(e), thread_info)
+                            
+                        template_found = True
+                        break
 
-            if not attachment_found:
-                print("📂 No Excel attachment found in the email.")
+                if not template_found:
+                    print("❌ No Excel template found in 'Here' email.")
+                    mail.logout()
+                    return ("TEMPLATE_UPDATE_FAILED", sender, "No attachment found", thread_info)
+
+            # Normal pipeline processing (legacy)
+            else:
+                attachment_found = False
+                for part in msg.walk():
+                    if part.get_content_maintype() == "multipart":
+                        continue
+                    if part.get("Content-Disposition") is None:
+                        continue
+
+                    filename = part.get_filename()
+                    if filename and any(filename.lower().endswith(ext) for ext in ['.xlsx', '.xls']):
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        saved_path = Config.INPUT_DIR / f"pipeline_{timestamp}.xlsx"
+
+                        try:
+                            with open(saved_path, "wb") as f:
+                                f.write(part.get_payload(decode=True))
+
+                            print(f"📥 Saved pipeline data from {sender} to: {saved_path}")
+                            mail.logout()
+                            return ("NORMAL_PROCESSING", str(saved_path), sender, thread_info)
+                            
+                        except Exception as e:
+                            print(f"❌ Error saving attachment: {e}")
+                            mail.logout()
+                            return None
+                            
+                        attachment_found = True
+                        break
+
+                if not attachment_found:
+                    print("📂 No Excel attachment found in the email.")
 
         mail.logout()
         return None
@@ -232,17 +479,16 @@ if __name__ == "__main__":
         action_type = result[0]
         print(f"✅ Action detected: {action_type}")
         
-        if action_type == "NORMAL_PROCESSING":
+        if action_type == "START_CONVERSATION":
+            sender = result[1]
+            print(f"Ready to start conversation with {sender}")
+        elif action_type.startswith("THREAD_"):
+            sender = result[1]
+            print(f"Thread action from {sender}: {action_type}")
+        elif action_type == "NORMAL_PROCESSING":
             file_path, sender = result[1], result[2]
             print(f"Ready for normal pipeline processing from {sender}")
-        elif action_type == "ADJUST_COLUMNS":
-            sender = result[1]
-            print(f"Template adjustment request from {sender}")
-        elif action_type == "TEMPLATE_UPDATED":
-            sender = result[1]
-            print(f"Template successfully updated from {sender}")
-        elif action_type == "TEMPLATE_UPDATE_FAILED":
-            sender = result[1]
-            print(f"Template update failed from {sender}")
+        else:
+            print(f"Other action: {action_type}")
     else:
         print("❌ No valid emails found or processed")

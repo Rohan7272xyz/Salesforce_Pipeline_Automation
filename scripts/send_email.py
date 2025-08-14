@@ -2,16 +2,6 @@ import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
 import os
-
-load_dotenv()
-
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-import smtplib
-from email.message import EmailMessage
-import os
 from pathlib import Path
 import sys
 
@@ -21,9 +11,9 @@ sys.path.insert(0, str(project_root))
 
 from config import Config
 
-def send_email_with_attachment(to_address, subject, body, attachment_path=None, cc_address=None):
+def send_email_with_attachment(to_address, subject, body, attachment_path=None, cc_address=None, thread_info=None):
     """
-    Send email with optional attachment and CC support.
+    Send email with optional attachment, CC support, and threading.
     
     Args:
         to_address (str): Primary recipient email address
@@ -31,6 +21,7 @@ def send_email_with_attachment(to_address, subject, body, attachment_path=None, 
         body (str): Email body text
         attachment_path (str, optional): Path to file to attach (None for no attachment)
         cc_address (str, optional): CC recipient email address
+        thread_info (dict, optional): Threading information for replies
         
     Raises:
         ValueError: If required configuration is missing
@@ -61,6 +52,28 @@ def send_email_with_attachment(to_address, subject, body, attachment_path=None, 
         # Add CC if provided
         if cc_address:
             msg['Cc'] = cc_address
+        
+        # Handle threading - critical for single thread functionality
+        if thread_info:
+            print(f"🔗 Adding threading headers...")
+            
+            # If replying to an existing message
+            if thread_info.get('message_id'):
+                msg['In-Reply-To'] = thread_info['message_id']
+                print(f"   In-Reply-To: {thread_info['message_id']}")
+            
+            # Build References header for proper threading
+            references = []
+            if thread_info.get('references'):
+                # Add existing references
+                references.extend(thread_info['references'].split())
+            if thread_info.get('message_id'):
+                # Add the message we're replying to
+                references.append(thread_info['message_id'])
+            
+            if references:
+                msg['References'] = ' '.join(references)
+                print(f"   References: {len(references)} message(s)")
         
         msg.set_content(body)
 
@@ -105,7 +118,10 @@ def send_email_with_attachment(to_address, subject, body, attachment_path=None, 
                 # Send the message
                 server.send_message(msg)
 
-            print("✅ Email sent successfully.")
+            if thread_info:
+                print("✅ Email sent successfully (in thread).")
+            else:
+                print("✅ Email sent successfully (new thread).")
             
         except smtplib.SMTPAuthenticationError:
             raise Exception("Email authentication failed. Check your email credentials.")
@@ -117,6 +133,73 @@ def send_email_with_attachment(to_address, subject, body, attachment_path=None, 
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
         raise  # Re-raise to trigger error handling upstream
+
+def send_thread_reply(to_address, body, attachment_path=None, cc_address=None, thread_info=None):
+    """
+    Convenience function to send a reply in the MAG bot conversation thread.
+    Always uses the standard bot subject line for consistency.
+    
+    Args:
+        to_address (str): Primary recipient email address
+        body (str): Email body text
+        attachment_path (str, optional): Path to file to attach
+        cc_address (str, optional): CC recipient email address
+        thread_info (dict, optional): Threading information for replies
+    """
+    subject = "Re: Interact with the MAG bot to configure your file"
+    
+    return send_email_with_attachment(
+        to_address=to_address,
+        subject=subject,
+        body=body,
+        attachment_path=attachment_path,
+        cc_address=cc_address,
+        thread_info=thread_info
+    )
+
+def send_conversation_starter(to_address, cc_address=None, thread_info=None):
+    """
+    Send the initial conversation starter when user sends "Start conversation".
+    
+    Args:
+        to_address (str): Primary recipient email address
+        cc_address (str, optional): CC recipient email address
+        thread_info (dict, optional): Threading information from the original message
+    """
+    subject = "Re: Start conversation"
+    body = """Hello,
+
+I'm here to help you process your Salesforce pipeline files.
+
+WHAT I CAN DO:
+
+Adjust Columns: Type "Adjust Columns" and I'll send you the current template to modify. When you're done, reply with "Here" and attach your updated template.
+
+Process Files: Attach your pipeline Excel file and I'll process it for you.
+
+All our conversation will stay in this email thread.
+
+Best regards,
+MAG Pipeline Bot
+
+
+Ready to get started? Just reply to this email with what you'd like to do!
+
+Best regards,
+MAG Pipeline Bot 
+
+---
+This is an automated response from your pipeline automation system.
+"""
+    
+    return send_email_with_attachment(
+        to_address=to_address,
+        subject=subject,
+        body=body,
+        attachment_path=None,
+        cc_address=cc_address,
+        thread_info=thread_info
+    )
 
 def send_test_email():
     """Send a test email to verify configuration."""
@@ -169,53 +252,3 @@ if __name__ == "__main__":
     else:
         print("❌ Email system test failed!")
         sys.exit(1)
-def send_email_with_attachment(to_address, subject, body, attachment_path=None, cc_address=None):
-    """
-    Send email with optional attachment and CC support.
-    
-    Args:
-        to_address (str): Primary recipient email address
-        subject (str): Email subject
-        body (str): Email body text
-        attachment_path (str, optional): Path to file to attach (None for no attachment)
-        cc_address (str, optional): CC recipient email address
-    """
-    try:
-        msg = EmailMessage()
-        msg['From'] = EMAIL_USER
-        msg['To'] = to_address
-        msg['Subject'] = subject
-        
-        # Add CC if provided
-        if cc_address:
-            msg['Cc'] = cc_address
-            print(f"📧 Sending to: {to_address} (CC: {cc_address})")
-        else:
-            print(f"📧 Sending to: {to_address}")
-        
-        msg.set_content(body)
-
-        # Attach file if provided
-        if attachment_path and os.path.exists(attachment_path):
-            with open(attachment_path, 'rb') as f:
-                file_data = f.read()
-                file_name = os.path.basename(attachment_path)
-            msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
-            print(f"📎 Attachment added: {file_name}")
-        elif attachment_path:
-            print(f"⚠️ Attachment file not found: {attachment_path}")
-
-        # Connect and send
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()  # Upgrades to secure connection
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
-
-        print("✅ Email sent successfully.")
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        raise  # Re-raise to trigger error handling
-
-if __name__ == "__main__":
-    # Test function
-    print("This is the send_email module. Import and use send_email_with_attachment() function.")
