@@ -41,20 +41,44 @@ email_sender = RobustEmailSender(debug=DEBUG_MODE)
 def send_help_instructions(sender, thread_info=None):
     """Send help/instructions to user when they start a conversation."""
     try:
-        help_body = """Hello,
+        help_body = """MAG Pipeline Automation Assistant
 
-I'm here to help you process your Salesforce pipeline files.
+Hello! 👋
 
-WHAT I CAN DO:
+Welcome to your intelligent Salesforce pipeline processing system. I'm here to streamline your workflow and ensure your data is always perfectly formatted.
 
-1. Assist in Sheet Formatting Changes: If you tell me to "Change Format", I'll send you the current excel template to modify. When you're done, reply with "Here" and attach the updated template.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-2. Process Files: Attach your pipeline Excel file and I'll organize/process it for you.
+🚀 WHAT I CAN DO FOR YOU
 
-Ready to get started? Just reply to this email with what you'd like to do! All our conversations will stay in this email thread.
+📊 Pipeline Processing
+   Simply attach your Salesforce pipeline Excel file to any email, and I'll:
+   ✅ Clean and organize your data
+   ✅ Apply consistent formatting  
+   ✅ Generate professional Gantt chart layouts
+   ✅ Return a polished, presentation-ready file
+
+🔧 Template Management
+   Need to adjust column structures? Just type "Adjust Columns" and I'll:
+   📤 Send you the current template for modification
+   🔄 Guide you through the update process
+   ✅ Automatically integrate your changes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 GETTING STARTED
+
+For Pipeline Processing: Attach your Excel file to this email thread
+For Template Changes: Reply with "Adjust Columns"  
+Need Help: Type "Help" anytime
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 All conversations stay in this email thread for easy tracking
 
 Best regards,
 MAG Pipeline Bot
+Your Automated Pipeline Assistant
 
 ---
 Type "Help" anytime to see these instructions again
@@ -85,22 +109,55 @@ Type "Help" anytime to see these instructions again
 def send_template_to_user(sender, thread_info=None):
     """Send the current template to user for modification."""
     try:
-        template_body = """Hello,
+        template_body = """📋 Template Customization Request
 
-I'm sending you the current Excel template that the system uses.
+Hello!
 
-INSTRUCTIONS:
-1. Download and open the attached template file
-2. Make your column/format changes to this template
-3. Save the file as .xlsx format
-4. IMPORTANT: Reply to this email thread with your updated template attached and "Here" typed in the message body
-5. IMPORTANT: Type "Here" in the message body 
+I've attached the current Excel template that powers your pipeline automation system. You can now customize it to match your exact requirements.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 STEP-BY-STEP INSTRUCTIONS
+
+Step 1: 📥 Download & Open
+   Download the attached template file and open it in Excel
+
+Step 2: ✏️ Customize  
+   Make your desired column/format changes:
+   • Add, remove, or reorder columns
+   • Modify headers and formatting
+   • Adjust any layout preferences
+
+Step 3: 💾 Save Properly
+   Save the file in .xlsx format (Excel format)
+
+Step 4: 📤 Return Updated Template
+   Reply to this email thread with:
+   ✅ Your updated template file attached
+   ✅ The word "Here" in the message body
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ IMPORTANT NOTES
+
+🔹 Reply to this thread (don't start a new email)  
+🔹 Type "Here" in the message body (this triggers the update)  
+🔹 Attach your modified template as .xlsx file  
+🔹 Keep original structure where possible for best results
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📧 Once you reply with "Here" + attachment, I'll automatically:
+   • Update the system template
+   • Confirm the changes  
+   • Ready the system for processing with your new format
 
 Best regards,
-MAG Pipeline Bot 
+MAG Pipeline Bot
+Template Management System
 
 ---
-Automated response to your "Adjust Columns" request
+Automated response to your "Change Format" request
 """
         
         if not Config.TEMPLATE_PATH.exists():
@@ -133,42 +190,111 @@ def send_template_confirmation(sender, success=True, thread_info=None, error_det
     """Send confirmation email about template update."""
     try:
         if success:
-            body = """Hello,
+            body = """✅ Template Update Successful!
 
-Your template has been successfully updated in my server.
+Hello!
 
-The system is now ready to process pipeline files with your new formatting change.
+Great news! Your template customization has been successfully processed and integrated into the system.
 
-You can now attach and send your pipeline files for processing.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 WHAT JUST HAPPENED
+
+✅ Template Updated - Your new format is now active  
+✅ System Reconfigured - All processing rules updated automatically  
+✅ Backup Created - Previous template safely archived  
+✅ Ready for Processing - System is live with your changes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 YOU'RE ALL SET!
+
+Your pipeline automation system is now configured with your custom template and ready to process files using your new formatting structure.
+
+Next Steps:
+📎 Attach your Salesforce pipeline Excel files to this email thread  
+⚡ I'll process them automatically with your new format  
+📊 Receive your polished, formatted reports back via email
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 NEED CHANGES?
+
+If you need to make additional template adjustments:
+- Type "Adjust Columns" to start the process again
+- I'll send you the current (updated) template to modify
 
 Best regards,
 MAG Pipeline Bot
+Template Management System
+
+🎯 Your automation system is now optimized and ready for action!
 
 ---
 Automated confirmation of successful template update
 """
         else:
-            body = f"""Oops! There was an issue updating the template. ❌
+            body = f"""There was an issue updating the template. ❌
 
 ERROR DETAILS
 {error_details or 'Unknown error occurred'}
 
-WHAT TO DO:
-1. Make sure you typed "Here" at the beginning of your message
-2. Make sure you attached an Excel (.xlsx) file
-3. Try replying to this thread again with:
-   - The word "Here" in the message body
-   - Your template file attached
+Hello!
 
- TIPS:
-• Don't include extra text before "Here"
-• Make sure the file is .xlsx format
-• Check that the file isn't corrupted
+I encountered an issue while trying to update your template. Don't worry - this is easily fixable!
 
-If you continue having issues, please contact Rohan directly at Rohan.Anand@mag.us
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 QUICK TROUBLESHOOTING
+
+Please check the following and try again:
+
+✅ Message Format
+   • Type "Here" at the very beginning of your message
+   • Don't include any other text before "Here"
+   • The word "Here" triggers the update process
+
+📎 File Requirements
+   • Attach your Excel file (.xlsx format)
+   • Ensure the file isn't corrupted or password-protected
+   • File should be saved properly in Excel format
+
+📧 Email Thread
+   • Reply to this email thread (don't create new email)
+   • Keep the conversation in the same thread
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CORRECT FORMAT EXAMPLE
+
+Message Body:
+Here
+
+With: Your updated template file attached as .xlsx
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 PRO TIPS
+
+🔹 Keep it simple - Just type "Here" and attach the file  
+🔹 Double-check file format - Must be .xlsx (not .xls or other formats)  
+🔹 Test your file - Open it in Excel first to ensure it's not corrupted  
+🔹 Reply to thread - Don't forward or create a new email
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 STILL HAVING ISSUES?
+
+If you continue experiencing problems after following these steps:
+
+📧 Contact: rohananand7272@gmail.com  OR  (+1)202-961-1540
+📞 For: Direct technical support
 
 Best regards,
-MAG Pipeline Bot 
+MAG Pipeline Bot
+Template Management System
+
+🔧 I'm here to help - let's get your template updated successfully!
 
 ---
 Automated error notification - template update failed
@@ -212,20 +338,66 @@ def send_successful_processing_email(sender, final_file, thread_info=None):
             else:
                 greeting_name = "there"
         
-        success_body = f"""Hi {greeting_name}!
+        success_body = f"""✅ Pipeline Processing Complete!
 
 I have successfully processed your Salesforce pipeline and made all the necessary adjustments.
 
-WHAT I DID:
-- Applied all formatting rules
-- Sorted data by capture manager
-- Generated the Gantt chart view
-- Cleaned up the data presentation
+Hello {greeting_name}!
 
-The formatted file is attached.
+Your Salesforce pipeline has been successfully processed and is ready for use. I've transformed your raw data into a polished, presentation-ready format.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 PROCESSING SUMMARY
+
+✅ Data Optimization
+   • Cleaned & validated all data entries
+   • Sorted by Capture Manager for logical organization
+   • Applied formatting rules for consistency and readability
+   • Removed duplicates and corrected inconsistencies
+
+📊 Visual Enhancements
+   • Generated Gantt Chart view for timeline visualization
+   • Professional layout with proper spacing and alignment
+   • Consistent styling across all columns and sections
+   • Export-ready format for presentations and reports
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📎 YOUR PROCESSED FILE
+
+📁 Attached: Your formatted pipeline report  
+🎨 Format: Professional Excel with Gantt chart layout  
+📊 Status: Ready for presentations, analysis, and stakeholder review
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 WHAT'S NEXT?
+
+Ready to Use:
+   • Open the attached file to review your formatted pipeline
+   • Share with stakeholders for decision-making
+   • Use for project planning and resource allocation
+
+Need More Processing:
+   • Send additional pipeline files anytime
+   • I'll process them with the same high-quality standards
+   • All processing happens automatically in this email thread
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 QUALITY ASSURANCE
+
+✅ Data Integrity - All original data preserved and enhanced  
+✅ Professional Standards - Corporate-ready formatting applied  
+✅ Gantt Visualization - Clear timeline and milestone tracking  
+✅ Stakeholder Ready - Polished presentation format
 
 Best regards,
 MAG Pipeline Bot
+Your Automated Pipeline Specialist
+
+🎊 Another successful pipeline transformation complete! Ready for your next file.
 
 ---
 Pipeline processed at {time.strftime('%Y-%m-%d %H:%M:%S')}
@@ -258,17 +430,77 @@ def send_error_alert_email(error_message, sender_email):
     """Send error alert email to admin."""
     try:
         alert_subject = "🚨 URGENT: Salesforce Pipeline Automation Error"
-        alert_body = f"""PIPELINE ERROR ALERT
+        alert_body = f"""🚨 URGENT: Pipeline System Alert
 
-TIME: {time.strftime('%Y-%m-%d %H:%M:%S')}
-SENDER: {sender_email}
-ERROR: {error_message}
+System Administrator,
 
-The automated Salesforce pipeline system has encountered an error and needs your attention.
+The MAG Salesforce Pipeline Automation system has encountered a critical error requiring immediate attention.
 
-The user has been automatically notified that there's an issue and that you're working on a fix.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Please check the system logs and resolve the issue as soon as possible.
+⚠️ INCIDENT SUMMARY
+
+🕐 Time: {time.strftime('%Y-%m-%d %H:%M:%S')}  
+👤 Affected User: {sender_email}  
+📍 Error Location: Pipeline Processing Module  
+⚡ Status: User Automatically Notified
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 ERROR DETAILS
+
+Error Message:
+{error_message}
+
+Impact Level: Service Interruption  
+User Experience: Processing request failed  
+System Status: Requires manual intervention
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ AUTOMATIC ACTIONS TAKEN
+
+🔹 User Notification - Professional error message sent to user  
+🔹 Error Logging - Full details captured in system logs  
+🔹 Thread Preservation - Email conversation maintained  
+🔹 System Stability - Core service remains operational for other users
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛠️ REQUIRED ACTIONS
+
+Immediate (< 30 minutes):
+1. Check System Logs - Review pipeline_log.txt for detailed error trace
+2. Assess Impact - Determine if this affects other users
+3. Initial Diagnosis - Identify probable cause
+
+Next Steps (< 2 hours):
+1. Implement Fix - Apply necessary corrections
+2. Test Resolution - Verify system functionality
+3. User Follow-up - Notify user when system is restored
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 SYSTEM MONITORING
+
+📁 Log Files: logs/pipeline_log.txt  
+🔧 Configuration: Review recent template updates  
+📧 Email Queue: Check for pending notifications  
+🖥️ System Health: Monitor for additional errors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 ESCALATION PATH
+
+If resolution requires extended time:
+- Update user with realistic timeline
+- Consider manual processing as temporary workaround
+- Document lessons learned for system improvement
+
+This is an automated alert from your MAG Pipeline Automation System  
+🤖 System Monitor | 📧 Auto-Generated Alert
+
+⏰ Response Time Target: < 2 hours | 🎯 Resolution Priority: HIGH
 
 ---
 This is an automated error alert from your pipeline system.
@@ -295,23 +527,67 @@ This is an automated error alert from your pipeline system.
 def send_error_email_to_user(error_message, sender_email, thread_info=None):
     """Send error notification email to user."""
     try:
-        error_body = f"""Hi there,
+        error_body = f"""⚠️ Temporary Processing Issue
 
-I wanted to let you know that there was a technical issue with processing your request.
+Hello!
 
-ISSUE DETAILS:
-• Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
-• Error: {error_message}
+I wanted to personally let you know that I encountered a technical issue while processing your request. I sincerely apologize for any inconvenience this may cause.
 
-NEXT STEPS:
-• Rohan has been automatically notified
-• He's working on identifying and fixing the issue
-• The system will be back online as quickly as possible
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-In the meantime, if you need immediate pipeline processing, please contact Rohan directly at Rohan.Anand@mag.us
+🔍 ISSUE SUMMARY
+
+📅 Time: {time.strftime('%Y-%m-%d %H:%M:%S')}  
+⚙️ Issue: Technical processing error  
+📊 Your Data: Safely preserved and will be processed once resolved
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛠️ RESOLUTION IN PROGRESS
+
+✅ Immediate Action Taken
+   • Rohan has been automatically notified of the issue
+   • Error details have been logged for rapid diagnosis
+   • System monitoring is active to prevent further issues
+
+🔄 What's Happening Now
+   • Technical team is investigating the root cause
+   • Fix is being developed and tested
+   • System will be restored as quickly as possible
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏰ EXPECTED TIMELINE
+
+🎯 Target Resolution: Within 2 hours  
+📧 Update Frequency: You'll be notified when system is restored  
+🔄 Auto-Retry: Your request will be processed automatically once fixed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 NEED IMMEDIATE ASSISTANCE?
+
+If you have urgent pipeline processing needs that cannot wait:
+
+📧 Direct Contact: Rohan.Anand@mag.us  
+📞 For: Immediate manual processing or technical support  
+⚡ Response Time: Within business hours
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 WHAT YOU CAN DO
+
+🔹 Keep this email thread - I'll notify you when the system is restored  
+🔹 No need to resend - Your original request is queued for processing  
+🔹 Continue normal workflow - This is an isolated technical issue
+
+Thank you for your patience while we resolve this quickly.
 
 Best regards,
-MAG Pipeline Bot 
+MAG Pipeline Bot
+Pipeline Automation System
+
+🔧 Committed to reliable service - we'll have this fixed shortly!
 
 ---
 Automated error notification
@@ -391,7 +667,7 @@ def main():
                         handle_error("Failed to send conversation starter", sender, None)
                 
                 elif action_type in ["ADJUST_COLUMNS", "THREAD_ADJUST_COLUMNS"]:
-                    # User wants to adjust columns
+                    # User wants to Change Format
                     sender = result[1]
                     subject = result[2]
                     thread_info = result[3]
