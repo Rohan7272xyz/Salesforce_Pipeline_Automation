@@ -19,12 +19,24 @@ class Config:
     SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
     
-    # Authorized Users
-    AUTHORIZED_EMAILS = ["Rohan.Anand@mag.us"]
+    # Authorized Users - UPDATED TO YOUR SPECIFICATIONS
+    AUTHORIZED_EMAILS = [
+        "Joseph.Findley@mag.us",  # Joe
+        "Rohananand7272@gmail.com",    # Rohan7272
+        "rohan.anand@mag.us",           # rohan@mag
+        "david.schultz@mag.us",         # person1 - UPDATE WITH ACTUAL EMAIL
+        "denise.kopel@mag.us"          # person2 - UPDATE WITH ACTUAL EMAIL
+    ]
     
-    # Contact Information
-    YOUR_EMAIL = "Rohan.Anand@mag.us"
-    JOE_EMAIL = "Rohan.Anand@mag.us"
+    # Error Email Recipients - CC'd on ALL error emails
+    ERROR_RECIPIENTS = [
+        "Rohananand7272@gmail.com",    # Rohan7272
+        "rohan.anand@mag.us"            # rohan.anand@mag
+    ]
+    
+    # Primary Contact Information (for admin alerts)
+    YOUR_EMAIL = "Rohananand7272@gmail.com"  # Updated to Rohan7272
+    JOE_EMAIL = "Joseph.Findley@mag.us"
     
     # File Paths (relative to project root)
     TEMPLATE_FILENAME = "C5SDEC_Pipeline_Overview_v3_070325.xlsx"
@@ -78,6 +90,14 @@ class Config:
         if not cls.WEB_DIR.exists():
             errors.append(f"Web directory not found: {cls.WEB_DIR}")
         
+        # Validate authorized emails
+        if not cls.AUTHORIZED_EMAILS:
+            errors.append("No authorized emails configured")
+        
+        # Validate error recipients
+        if not cls.ERROR_RECIPIENTS:
+            errors.append("No error recipients configured")
+        
         if errors:
             raise ValueError("Configuration errors:\n" + "\n".join(f"- {error}" for error in errors))
         
@@ -87,6 +107,16 @@ class Config:
     def get_downloads_path(cls):
         """Get the user's Downloads directory."""
         return Path.home() / "Downloads"
+    
+    @classmethod
+    def is_authorized_user(cls, email_address):
+        """Check if an email address is in the authorized users list."""
+        return email_address.lower() in [email.lower() for email in cls.AUTHORIZED_EMAILS]
+    
+    @classmethod
+    def get_error_cc_list(cls):
+        """Get the list of emails to CC on error notifications."""
+        return cls.ERROR_RECIPIENTS.copy()
 
 # Create directories on import
 Config.ensure_directories()

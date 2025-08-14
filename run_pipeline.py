@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Production Pipeline with Robust Single Thread Embedding
-Implements the complete mitigation plan for reliable email threading
+Production Pipeline with Multi-User Authorization and Enhanced Error Handling
 """
 
 import logging
@@ -23,9 +22,12 @@ from robust_email_sender import RobustEmailSender
 DEBUG_MODE = True  # Set to False for production
 THREADING_ENABLED = True  # Set to False to disable threading entirely
 
-print("✅ Running PRODUCTION pipeline with Single Thread Embedding (v8)")
+print("✅ Running PRODUCTION pipeline with Multi-User Support (v9)")
 print(f"🐛 Debug mode: {'ON' if DEBUG_MODE else 'OFF'}")
 print(f"🔗 Threading: {'ENABLED' if THREADING_ENABLED else 'DISABLED'}")
+print(f"👥 Authorized users: {len(Config.AUTHORIZED_EMAILS)}")
+for email in Config.AUTHORIZED_EMAILS:
+    print(f"   ✅ {email}")
 
 # Setup logging
 Config.ensure_directories()
@@ -38,12 +40,31 @@ logging.basicConfig(
 # Initialize robust email sender
 email_sender = RobustEmailSender(debug=DEBUG_MODE)
 
+def get_user_greeting(sender_email):
+    """Get personalized greeting based on sender email."""
+    sender_lower = sender_email.lower()
+    
+    if "joseph.findley" in sender_lower or "joe" in sender_lower:
+        return "Joe"
+    elif "rohan" in sender_lower:
+        return "Rohan"
+    elif "person1" in sender_lower:
+        return "Person1"  # Customize as needed
+    elif "person2" in sender_lower:
+        return "Person2"  # Customize as needed
+    else:
+        # Extract first name from email or use generic greeting
+        name_part = sender_email.split('@')[0].split('.')[0]
+        return name_part.title() if name_part else "there"
+
 def send_help_instructions(sender, thread_info=None):
     """Send help/instructions to user when they start a conversation."""
     try:
-        help_body = """MAG Pipeline Automation Assistant
+        greeting_name = get_user_greeting(sender)
+        
+        help_body = f"""MAG Pipeline Automation Assistant
 
-Hello! 👋
+Hello {greeting_name}! 👋
 
 Welcome to your intelligent Salesforce pipeline processing system. I'm here to streamline your workflow and ensure your data is always perfectly formatted.
 
@@ -59,7 +80,7 @@ Welcome to your intelligent Salesforce pipeline processing system. I'm here to s
    ✅ Return a polished, presentation-ready file
 
 🔧 Template Management
-   Need to adjust column structures? Just type "Adjust Columns" and I'll:
+   Need to adjust column structures? Just type "Change Format" and I'll:
    📤 Send you the current template for modification
    🔄 Guide you through the update process
    ✅ Automatically integrate your changes
@@ -69,12 +90,13 @@ Welcome to your intelligent Salesforce pipeline processing system. I'm here to s
 💡 GETTING STARTED
 
 For Pipeline Processing: Attach your Excel file to this email thread
-For Template Changes: Reply with "Adjust Columns"  
+For Template Changes: Reply with "Change Format"  
 Need Help: Type "Help" anytime
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔗 All conversations stay in this email thread for easy tracking
+👥 Available to all authorized MAG team members
 
 Best regards,
 MAG Pipeline Bot
@@ -87,11 +109,18 @@ Type "Help" anytime to see these instructions again
         # Use threading if enabled and thread_info provided
         use_threading = thread_info if THREADING_ENABLED else None
         
+        # CC all error recipients for transparency (with safety check)
+        cc_list = Config.get_error_cc_list()
+        # Remove sender from CC list to avoid duplicates
+        cc_list = [email for email in cc_list if email.lower() != sender.lower()]
+        # Use first available CC or fallback to primary admin
+        cc_address = cc_list[0] if cc_list else Config.YOUR_EMAIL
+        
         success = email_sender.send_email(
             to_address=sender,
             subject="Interact with the MAG bot to configure your file",
             body=help_body,
-            cc_address=Config.YOUR_EMAIL,
+            cc_address=cc_address,
             thread_info=use_threading
         )
         
@@ -109,9 +138,11 @@ Type "Help" anytime to see these instructions again
 def send_template_to_user(sender, thread_info=None):
     """Send the current template to user for modification."""
     try:
-        template_body = """📋 Template Customization Request
+        greeting_name = get_user_greeting(sender)
+        
+        template_body = f"""📋 Template Customization Request
 
-Hello!
+Hello {greeting_name}!
 
 I've attached the current Excel template that powers your pipeline automation system. You can now customize it to match your exact requirements.
 
@@ -166,12 +197,17 @@ Automated response to your "Change Format" request
         # Use threading if enabled and thread_info provided
         use_threading = thread_info if THREADING_ENABLED else None
         
+        # CC admins for transparency
+        cc_list = Config.get_error_cc_list()
+        cc_list = [email for email in cc_list if email.lower() != sender.lower()]
+        cc_address = cc_list[0] if cc_list else None
+        
         success = email_sender.send_email(
             to_address=sender,
             subject="Template for Column Adjustment",
             body=template_body,
             attachment_path=str(Config.TEMPLATE_PATH),
-            cc_address=Config.YOUR_EMAIL,
+            cc_address=cc_address,
             thread_info=use_threading
         )
         
@@ -189,10 +225,12 @@ Automated response to your "Change Format" request
 def send_template_confirmation(sender, success=True, thread_info=None, error_details=None):
     """Send confirmation email about template update."""
     try:
+        greeting_name = get_user_greeting(sender)
+        
         if success:
-            body = """✅ Template Update Successful!
+            body = f"""✅ Template Update Successful!
 
-Hello!
+Hello {greeting_name}!
 
 Great news! Your template customization has been successfully processed and integrated into the system.
 
@@ -221,7 +259,7 @@ Next Steps:
 🔄 NEED CHANGES?
 
 If you need to make additional template adjustments:
-- Type "Adjust Columns" to start the process again
+- Type "Change Format" to start the process again
 - I'll send you the current (updated) template to modify
 
 Best regards,
@@ -239,7 +277,7 @@ Automated confirmation of successful template update
 ERROR DETAILS
 {error_details or 'Unknown error occurred'}
 
-Hello!
+Hello {greeting_name}!
 
 I encountered an issue while trying to update your template. Don't worry - this is easily fixable!
 
@@ -265,29 +303,11 @@ Please check the following and try again:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 CORRECT FORMAT EXAMPLE
-
-Message Body:
-Here
-
-With: Your updated template file attached as .xlsx
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💡 PRO TIPS
-
-🔹 Keep it simple - Just type "Here" and attach the file  
-🔹 Double-check file format - Must be .xlsx (not .xls or other formats)  
-🔹 Test your file - Open it in Excel first to ensure it's not corrupted  
-🔹 Reply to thread - Don't forward or create a new email
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 🆘 STILL HAVING ISSUES?
 
 If you continue experiencing problems after following these steps:
 
-📧 Contact: rohananand7272@gmail.com  OR  (+1)202-961-1540
+📧 Contact: {', '.join(Config.get_error_cc_list())}
 📞 For: Direct technical support
 
 Best regards,
@@ -305,11 +325,16 @@ Automated error notification - template update failed
         
         subject = "Template Update Confirmation" if success else "Template Update Failed"
         
+        # CC all error recipients
+        cc_list = Config.get_error_cc_list()
+        cc_list = [email for email in cc_list if email.lower() != sender.lower()]
+        cc_address = cc_list[0] if cc_list else None
+        
         email_success = email_sender.send_email(
             to_address=sender,
             subject=subject,
             body=body,
-            cc_address=Config.YOUR_EMAIL,
+            cc_address=cc_address,
             thread_info=use_threading
         )
         
@@ -327,20 +352,9 @@ Automated error notification - template update failed
 def send_successful_processing_email(sender, final_file, thread_info=None):
     """Send successful processing notification with file."""
     try:
-        # Determine the greeting based on sender
-        if "joseph.findley" in sender.lower() or "joe" in sender.lower():
-            greeting_name = "Joe"
-        else:
-            # Extract first name from email or use a generic greeting
-            sender_parts = sender.split('@')[0].split('.')
-            if len(sender_parts) > 0:
-                greeting_name = sender_parts[0].title()
-            else:
-                greeting_name = "there"
+        greeting_name = get_user_greeting(sender)
         
         success_body = f"""✅ Pipeline Processing Complete!
-
-I have successfully processed your Salesforce pipeline and made all the necessary adjustments.
 
 Hello {greeting_name}!
 
@@ -406,12 +420,17 @@ Pipeline processed at {time.strftime('%Y-%m-%d %H:%M:%S')}
         # Use threading if enabled and thread_info provided
         use_threading = thread_info if THREADING_ENABLED else None
         
+        # CC admins for transparency
+        cc_list = Config.get_error_cc_list()
+        cc_list = [email for email in cc_list if email.lower() != sender.lower()]
+        cc_address = cc_list[0] if cc_list else None
+        
         success = email_sender.send_email(
             to_address=sender,
             subject="Your Processed Salesforce Pipeline",
             body=success_body,
             attachment_path=final_file,
-            cc_address=Config.YOUR_EMAIL,
+            cc_address=cc_address,
             thread_info=use_threading
         )
         
@@ -427,12 +446,12 @@ Pipeline processed at {time.strftime('%Y-%m-%d %H:%M:%S')}
         return False
 
 def send_error_alert_email(error_message, sender_email):
-    """Send error alert email to admin."""
+    """Send error alert email to ALL error recipients."""
     try:
         alert_subject = "🚨 URGENT: Salesforce Pipeline Automation Error"
         alert_body = f"""🚨 URGENT: Pipeline System Alert
 
-System Administrator,
+System Administrators,
 
 The MAG Salesforce Pipeline Automation system has encountered a critical error requiring immediate attention.
 
@@ -503,33 +522,44 @@ This is an automated alert from your MAG Pipeline Automation System
 ⏰ Response Time Target: < 2 hours | 🎯 Resolution Priority: HIGH
 
 ---
-This is an automated error alert from your pipeline system.
+Sent to all error recipients: {', '.join(Config.get_error_cc_list())}
 """
         
-        success = email_sender.send_email(
-            to_address=Config.YOUR_EMAIL,
-            subject=alert_subject,
-            body=alert_body,
-            thread_info=None  # Always send errors as new threads
-        )
+        # Send to ALL error recipients
+        success_count = 0
+        for admin_email in Config.get_error_cc_list():
+            try:
+                success = email_sender.send_email(
+                    to_address=admin_email,
+                    subject=alert_subject,
+                    body=alert_body,
+                    thread_info=None  # Always send errors as new threads
+                )
+                
+                if success:
+                    success_count += 1
+                    print(f"📧 Error alert sent to admin ({admin_email})")
+                    logging.info(f"Error alert email sent to {admin_email}")
+                    
+            except Exception as e:
+                print(f"❌ Failed to send error alert to {admin_email}: {e}")
+                logging.error(f"Error alert email failed for {admin_email}: {e}")
         
-        if success:
-            print(f"📧 Error alert sent to admin ({Config.YOUR_EMAIL})")
-            logging.info(f"Error alert email sent to {Config.YOUR_EMAIL}")
-        
-        return success
+        return success_count > 0
         
     except Exception as e:
-        print(f"❌ Failed to send error alert email: {e}")
-        logging.error(f"Error alert email failed: {e}")
+        print(f"❌ Failed to send error alert emails: {e}")
+        logging.error(f"Error alert email system failed: {e}")
         return False
 
 def send_error_email_to_user(error_message, sender_email, thread_info=None):
     """Send error notification email to user."""
     try:
+        greeting_name = get_user_greeting(sender_email)
+        
         error_body = f"""⚠️ Temporary Processing Issue
 
-Hello!
+Hello {greeting_name}!
 
 I wanted to personally let you know that I encountered a technical issue while processing your request. I sincerely apologize for any inconvenience this may cause.
 
@@ -546,7 +576,7 @@ I wanted to personally let you know that I encountered a technical issue while p
 🛠️ RESOLUTION IN PROGRESS
 
 ✅ Immediate Action Taken
-   • Rohan has been automatically notified of the issue
+   • System administrators have been automatically notified
    • Error details have been logged for rapid diagnosis
    • System monitoring is active to prevent further issues
 
@@ -569,9 +599,9 @@ I wanted to personally let you know that I encountered a technical issue while p
 
 If you have urgent pipeline processing needs that cannot wait:
 
-📧 Direct Contact: Rohan.Anand@mag.us  
+📧 Direct Contact: {', '.join(Config.get_error_cc_list())}
 📞 For: Immediate manual processing or technical support  
-⚡ Response Time: Within business hours
+⚡ OR Call: (+1)202-961-1540
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -596,11 +626,16 @@ Automated error notification
         # Use threading if enabled and thread_info provided
         use_threading = thread_info if THREADING_ENABLED else None
         
+        # CC admins on error notifications
+        cc_list = Config.get_error_cc_list()
+        cc_list = [email for email in cc_list if email.lower() != sender_email.lower()]
+        cc_address = cc_list[0] if cc_list else None
+        
         success = email_sender.send_email(
             to_address=sender_email,
             subject="Pipeline Processing Error",
             body=error_body,
-            cc_address=Config.YOUR_EMAIL,
+            cc_address=cc_address,
             thread_info=use_threading
         )
         
@@ -616,13 +651,13 @@ Automated error notification
         return False
 
 def handle_error(error_message, sender_email=None, thread_info=None):
-    """Handle errors by sending alert email to admin and notification email to user."""
+    """Handle errors by sending alert email to admins and notification email to user."""
     print(f"🚨 PIPELINE ERROR: {error_message}")
     
     # Log the error
     logging.error(f"Pipeline error: {error_message} (sender: {sender_email})")
     
-    # Send alert email to admin
+    # Send alert email to ALL admins
     send_error_alert_email(error_message, sender_email or "Unknown")
     
     # Send error email to user (with threading if available)
@@ -630,7 +665,7 @@ def handle_error(error_message, sender_email=None, thread_info=None):
         send_error_email_to_user(error_message, sender_email, thread_info)
 
 def main():
-    """Main pipeline loop with robust single thread support."""
+    """Main pipeline loop with multi-user support."""
     try:
         # Validate configuration before starting
         Config.validate_config()
@@ -642,14 +677,23 @@ def main():
         return
     
     print(f"🔄 Starting pipeline monitoring (checking every {Config.CHECK_INTERVAL_SECONDS} seconds)")
-    print("📧 Single Thread Embedding: ACTIVE")
+    print("👥 Multi-User Support: ACTIVE")
+    print(f"📧 Error recipients: {', '.join(Config.get_error_cc_list())}")
     
     while True:
+        # Only show detailed checking message occasionally in debug mode
         if DEBUG_MODE:
-            print("🔍 Checking for new emails...")
+            check_count = getattr(main, 'check_count', 0) + 1
+            main.check_count = check_count
+            if check_count % 12 == 1:  # Every minute (12 * 5 seconds)
+                print("🔍 Monitoring for emails... (showing every 60 seconds)")
         
         try:
+            print("🔍 DEBUG: About to call download_latest_attachment()")
             result = download_latest_attachment()
+            print(f"🔍 DEBUG: download_latest_attachment() returned: {result}")
+            print(f"🔍 DEBUG: Result type: {type(result)}")
+            
             if result:
                 action_type = result[0]
                 print(f"🎯 Action detected: {action_type}")

@@ -173,7 +173,7 @@ I'm here to help you process your Salesforce pipeline files.
 
 WHAT I CAN DO:
 
-Adjust Columns: Type "Adjust Columns" and I'll send you the current template to modify. When you're done, reply with "Here" and attach your updated template.
+Change Format: Type "Change Format" and I'll send you the current template to modify. When you're done, reply with "Here" and attach your updated template.
 
 Process Files: Attach your pipeline Excel file and I'll process it for you.
 

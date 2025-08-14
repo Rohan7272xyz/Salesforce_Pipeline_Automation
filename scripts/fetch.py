@@ -24,7 +24,7 @@ def backup_current_template():
     return None
 
 def replace_template(new_template_path):
-    """Replace the current template with the new one from Joe."""
+    """Replace the current template with the new one from authorized user."""
     try:
         # Create backup first
         backup_path = backup_current_template()
@@ -83,15 +83,14 @@ def is_thread_continuation(msg):
 
 def parse_email_body_for_commands(body_text):
     """
-    FIXED: Parse email body for command keywords with proper user message extraction.
-    Now correctly handles case-insensitive matching for "change format"
+    Parse email body for command keywords with proper user message extraction.
     """
     if not body_text:
         return None
     
     try:
         # Clean and normalize the body text
-        body_lower = body_text.lower().strip()
+        body_lower = str(body_text).lower().strip()
         
         # Remove common email artifacts
         body_lower = re.sub(r'<[^>]+>', '', body_lower)  # Remove HTML tags
@@ -99,23 +98,19 @@ def parse_email_body_for_commands(body_text):
         
         print(f"📝 Full body preview: {body_lower[:100]}...")
         
-        # IMPROVED: Look for separator patterns and extract text BEFORE them
+        # Look for separator patterns and extract text BEFORE them
         separator_patterns = [
             '________________________________',
             'from: magpipelinemanager@gmail.com',
             'from:magpipelinemanager@gmail.com',
-            'sent: monday',
-            'sent: tuesday', 
-            'sent: wednesday',
-            'sent: thursday',
-            'sent: friday',
-            'sent: saturday',
-            'sent: sunday',
+            'sent:',  # More flexible date matching
             'hi there',
             'i see you want to adjust',
             'hello,',
             "i'm here to help",
-            "i'm sending you"
+            "i'm sending you",
+            'mag pipeline',  # Added common bot signature
+            'automated response'  # Added common bot signature
         ]
         
         # Find the earliest separator
@@ -145,8 +140,11 @@ def parse_email_body_for_commands(body_text):
             print("📥 Command detected: HERE (template update)")
             return "HERE"
         
-        # FIXED: Check for "change format" with lowercase comparison since user_message is lowercase
-        if 'change format' in user_message or 'adjust column' in user_message:
+        # Check for "change format" or "adjust columns" (more flexible)
+        if ('change format' in user_message or 
+            'adjust column' in user_message or
+            'adjust format' in user_message or
+            'modify column' in user_message):
             print("🔧 Command detected: Change Format")
             return "ADJUST_COLUMNS"
         
@@ -164,7 +162,8 @@ def parse_email_body_for_commands(body_text):
         
     except Exception as e:
         print(f"⚠️ Error parsing email body for commands: {e}")
-        return None
+        # Fallback: if parsing fails completely, treat as help request
+        return "HELP"
 
 def get_email_body(msg):
     """Extract the email body text."""
@@ -189,10 +188,7 @@ def get_email_body(msg):
 
 def download_latest_attachment():
     """
-    Download latest attachment and handle different email types:
-    - "Start conversation": Initiate bot interaction thread
-    - Thread continuation with body commands: "Change Format", "Here"
-    - Thread continuation with file: Normal pipeline processing
+    Download latest attachment and handle different email types from ANY authorized user.
     """
     try:
         # Validate configuration first
@@ -206,20 +202,33 @@ def download_latest_attachment():
         mail.login(Config.EMAIL_USER, Config.EMAIL_PASS)
         mail.select("inbox")
 
-        # Search for UNSEEN emails from authorized sender
-        search_criteria = f'(UNSEEN FROM "{Config.AUTHORIZED_EMAILS[0]}")'
+        # FIXED: Search for UNSEEN emails from ANY authorized sender
+        # Gmail IMAP doesn't like complex OR statements, so we'll search individually
+        all_email_ids = []
+        emails_found = 0
         
-        print(f"🔍 Searching with criteria: {search_criteria}")
-        
-        status, messages = mail.search(None, search_criteria)
+        for email_addr in Config.AUTHORIZED_EMAILS:
+            try:
+                search_criteria = f'(UNSEEN FROM "{email_addr}")'
+                status, messages = mail.search(None, search_criteria)
+                if status == "OK" and messages[0]:
+                    email_ids = messages[0].split()
+                    all_email_ids.extend(email_ids)
+                    emails_found += len(email_ids)
+                    print(f"📧 Found {len(email_ids)} unread emails from {email_addr}")
+            except Exception as e:
+                print(f"⚠️ Search failed for {email_addr}: {e}")
+                continue
 
-        if status != "OK" or not messages[0]:
-            print(f"📭 No new unread emails from {Config.AUTHORIZED_EMAILS[0]}.")
+        if not all_email_ids:
+            mail.logout()
             return None
 
-        email_ids = messages[0].split()
-        latest_email_id = email_ids[-1]
+        # Use the most recent email from all found emails
+        latest_email_id = all_email_ids[-1]
+        print(f"📧 Processing most recent email (ID: {latest_email_id}) from {emails_found} total found")
 
+        # FIXED: Removed the duplicate conflicting lines that were causing the bug
         status, msg_data = mail.fetch(latest_email_id, "(RFC822)")
         if status != "OK":
             print("❌ Failed to fetch email")
@@ -235,11 +244,14 @@ def download_latest_attachment():
         print(f"📧 Processing email from: {sender}")
         print(f"📋 Subject: {subject}")
 
-        # Verify sender is authorized
-        if sender not in Config.AUTHORIZED_EMAILS:
+        # UPDATED: Verify sender is authorized using new method
+        if not Config.is_authorized_user(sender):
             print(f"⚠️ Unauthorized sender: {sender}")
+            print(f"⚠️ Authorized users: {', '.join(Config.AUTHORIZED_EMAILS)}")
             mail.logout()
             return None
+
+        print(f"✅ Sender {sender} is authorized")
 
         # Extract threading information
         is_thread, thread_info = is_thread_continuation(msg)
@@ -256,7 +268,7 @@ def download_latest_attachment():
             body_text = get_email_body(msg)
             print(f"📝 Email body preview: {body_text[:100]}...")
             
-            # Parse body for commands using FIXED function
+            # Parse body for commands
             command = parse_email_body_for_commands(body_text)
             
             if command == 'ADJUST_COLUMNS':
@@ -461,15 +473,16 @@ def download_latest_attachment():
         print(f"❌ IMAP error: {e}")
         return None
     except Exception as e:
-        print(f"❌ Unexpected error in email processing: {e}")
+        print(f"❌ CRITICAL ERROR in download_latest_attachment: {e}")
         import traceback
-        print(traceback.format_exc())
+        print(f"❌ FULL TRACEBACK: {traceback.format_exc()}")
         return None
 
 if __name__ == "__main__":
     try:
         Config.validate_config()
         print("✅ Configuration validated")
+        print(f"✅ Authorized users: {', '.join(Config.AUTHORIZED_EMAILS)}")
     except ValueError as e:
         print(f"❌ Configuration error: {e}")
         sys.exit(1)
